@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Quorum - Reports of the Confidential Tribunal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;0,8..60,900;1,8..60,400&family=Libre+Franklin:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #ffffff;
+    --ink: #121212;
+    --ink-soft: #333333;
+    --gray: #666666;
+    --gray-2: #888888;
+    --hair: #e2e2e2;
+    --hair-2: #cfcfcf;
+    --rule: #121212;
+    --blue: #326891;     /* NYT link blue */
+    --red: #d0021b;      /* NYT breaking red */
+    --green: #2f6b35;    /* results green */
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 18px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 28px; }
+  .serif-d { font-family:'Source Serif 4', Georgia, serif; }
+  .fr { font-family:'Libre Franklin', 'Helvetica Neue', Arial, sans-serif; }
+  .mono { font-family:'IBM Plex Mono', monospace; }
+
+  /* ============ NAMEPLATE ============ */
+  header { padding-top: 22px; }
+  .pre-rule {
+    font-family:'Libre Franklin', sans-serif; font-size: 11px; letter-spacing: 0.04em;
+    color: var(--ink); display:flex; justify-content: space-between; align-items:center;
+    padding-bottom: 8px; border-bottom: 1px solid var(--ink); text-transform: none;
+  }
+  .pre-rule .l, .pre-rule .r { flex:1; }
+  .pre-rule .r { text-align:right; }
+  .pre-rule .c { font-weight: 700; letter-spacing: 0.02em; }
+  .nameplate { text-align:center; padding: 14px 0 10px; }
+  .nameplate h1 {
+    font-family:'UnifrakturMaguntia', serif; font-weight: 400;
+    font-size: clamp(58px, 12vw, 122px); line-height: 0.95; letter-spacing: 0.01em;
+  }
+  .nameplate .sub {
+    font-family:'Libre Franklin', sans-serif; font-size: 12px; letter-spacing: 0.02em;
+    color: var(--ink-soft); margin-top: 6px; font-style: italic;
+  }
+  .plate-rule {
+    border-top: 1px solid var(--ink); border-bottom: 3px double var(--ink);
+    padding: 7px 0; margin-top: 12px;
+    font-family:'Libre Franklin', sans-serif; font-size: 11px; color: var(--ink-soft);
+    display:flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+  .plate-rule b { color: var(--ink); font-weight: 600; }
+
+  /* ============ LEAD STORY ============ */
+  .lead { padding: 30px 0 28px; border-bottom: 1px solid var(--hair); }
+  .kicker {
+    font-family:'Libre Franklin', sans-serif; font-weight: 700; font-size: 12px;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--red); margin-bottom: 10px;
+    display:flex; align-items:center; gap: 8px;
+  }
+  .kicker .dot { width: 8px; height: 8px; background: var(--red); border-radius: 50%; display:inline-block; animation: blink 1.6s infinite; }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+  .headline {
+    font-family:'Source Serif 4', Georgia, serif; font-weight: 900;
+    font-size: clamp(34px, 5.2vw, 58px); line-height: 1.02; letter-spacing: -0.015em;
+    max-width: 18ch;
+  }
+  .byline {
+    font-family:'Libre Franklin', sans-serif; font-size: 13px; color: var(--ink); margin-top: 16px;
+    text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .byline .time { color: var(--gray); text-transform: none; letter-spacing: 0; font-style: italic; font-family: Georgia, serif; }
+  .lead-grid { display:grid; grid-template-columns: 1.5fr 1fr; gap: 36px; margin-top: 22px; }
+  .standfirst { font-size: 21px; line-height: 1.46; }
+  .standfirst .drop {
+    float:left; font-family:'Source Serif 4', Georgia, serif; font-weight: 900; font-size: 76px;
+    line-height: 0.66; padding: 8px 10px 0 0;
+  }
+  .facts { border-top: 2px solid var(--ink); padding-top: 12px; }
+  .facts .ft { font-family:'Libre Franklin', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray); }
+  .facts dl { font-family:'Libre Franklin', sans-serif; font-size: 13.5px; }
+  .facts dt { font-weight: 700; margin-top: 12px; }
+  .facts dd { color: var(--ink-soft); }
+
+  /* ============ section ============ */
+  section { padding: 34px 0; border-bottom: 1px solid var(--hair); }
+  .secthead {
+    font-family:'Libre Franklin', sans-serif; font-weight: 800; font-size: 13px;
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink);
+    border-bottom: 1px solid var(--ink); padding-bottom: 7px; margin-bottom: 22px;
+    display:flex; justify-content: space-between; align-items: baseline;
+  }
+  .secthead span { font-weight: 400; font-style: italic; color: var(--gray); text-transform: none; font-family: Georgia, serif; font-size: 14px; }
+
+  /* ============ CAUSE / case file ============ */
+  .cause { border-top: 2px solid var(--ink); }
+  .cause-meta {
+    display:flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px;
+    padding: 10px 0; border-bottom: 1px solid var(--hair);
+    font-family:'Libre Franklin', sans-serif; font-size: 12px;
+  }
+  .cause-no { font-weight: 700; letter-spacing: 0.02em; }
+  .cause-no b { color: var(--blue); }
+  .status { text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray); }
+  .status b {
+    color: var(--ink); padding: 3px 9px; border: 1px solid var(--ink); margin-left: 7px;
+    transition: background .3s, color .3s;
+  }
+  .status b[data-on="1"] { background: var(--ink); color: var(--paper); }
+
+  .terms { padding: 20px 0; border-bottom: 1px solid var(--hair); }
+  .label {
+    font-family:'Libre Franklin', sans-serif; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray); display:block; margin-bottom: 7px;
+  }
+  .terms p { font-size: 19px; line-height: 1.5; }
+  .terms p b { font-weight: 700; }
+
+  .parties { display:grid; grid-template-columns: 1fr 1fr; gap: 0; border-bottom: 1px solid var(--hair); }
+  .party { padding: 22px 0; }
+  .party:first-child { padding-right: 28px; border-right: 1px solid var(--hair); }
+  .party:last-child { padding-left: 28px; }
+  .party .role { font-family:'Libre Franklin', sans-serif; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--red); }
+  .party .who { font-family:'Source Serif 4', Georgia, serif; font-weight: 700; font-size: 26px; line-height: 1.05; margin-top: 4px; }
+  .party .addr { font-family:'IBM Plex Mono', monospace; font-size: 11px; color: var(--gray); margin: 4px 0 18px; }
+  .bond { margin-bottom: 18px; }
+  .conf-amt { font-family:'IBM Plex Mono', monospace; font-size: 14px; color: var(--ink); filter: blur(4.5px); user-select:none; -webkit-user-select:none; }
+  .plain-ev {
+    font-family:'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.75; color: var(--ink-soft);
+    white-space: pre-wrap; filter: blur(4.5px); user-select:none; -webkit-user-select:none; pointer-events:none;
+    transition: filter .6s ease;
+  }
+  .plain-ev.show { filter: blur(0); user-select:text; -webkit-user-select:text; pointer-events:auto; animation: rise .5s ease; }
+
+  /* ============ ROLL CALL (results module) ============ */
+  .rollcall { margin-top: 26px; display:none; }
+  .rollcall.show { display:block; animation: rise .5s ease; }
+  .motion {
+    font-family:'Source Serif 4', Georgia, serif; font-size: 19px; text-align:center;
+    padding: 14px 16px; border-top: 2px solid var(--ink); border-bottom: 1px solid var(--ink);
+  }
+  .motion b { font-weight: 700; }
+  .seats { display:grid; grid-template-columns: repeat(5,1fr); }
+  .seat { padding: 16px 6px; text-align:center; border-right: 1px solid var(--hair); border-bottom: 1px solid var(--ink); }
+  .seat:last-child { border-right:none; }
+  .seat .sn { font-family:'Libre Franklin', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--gray); text-transform: uppercase; }
+  .seat.chair .sn { color: var(--blue); }
+  .seat .model { font-family:'IBM Plex Mono', monospace; font-size: 10px; color: var(--gray-2); margin: 7px 0; }
+  .seat .ballot {
+    font-family:'Libre Franklin', sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 0.04em;
+    text-transform: uppercase; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--hair);
+    opacity: 0; transition: opacity .35s;
+  }
+  .seat .ballot.cast { opacity: 1; }
+  .ballot.concur { color: var(--green); }
+  .ballot.dissent { color: var(--red); }
+  .ballot.propose { color: var(--ink); }
+  .tally {
+    display:flex; justify-content: space-between; align-items:center; flex-wrap: wrap; gap: 10px;
+    padding: 12px 0; font-family:'Libre Franklin', sans-serif; font-size: 12px;
+    border-bottom: 1px solid var(--hair);
+  }
+  .tally .count b { color: var(--ink); font-weight: 800; letter-spacing: 0.03em; }
+  .tally .eqp { color: var(--gray); }
+  .tally .eqp em { font-family:'IBM Plex Mono', monospace; font-style: normal; color: var(--ink); }
+
+  /* ============ VERDICT / opinion ============ */
+  .opinion { margin-top: 26px; display:none; }
+  .opinion.show { display:block; animation: rise .5s ease; }
+  .opinion-rule { border-top: 3px double var(--ink); padding-top: 10px; }
+  .op-kicker { font-family:'Libre Franklin', sans-serif; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink); }
+  .op-kicker .of { color: var(--gray); font-weight: 500; }
+  .holding { display:flex; align-items: baseline; gap: 22px; flex-wrap: wrap; margin: 12px 0 16px; }
+  .holding .h-ruling { font-family:'Source Serif 4', Georgia, serif; font-weight: 900; font-size: 46px; line-height: 1; letter-spacing: -0.02em; }
+  .holding .h-award { font-family:'Libre Franklin', sans-serif; font-size: 13px; font-weight: 600; color: var(--ink-soft); border: 1px solid var(--ink); padding: 7px 12px; }
+  .holding .h-award b { color: var(--ink); }
+  .opinion .text { font-size: 19px; line-height: 1.5; max-width: 62ch; }
+  .opinion .text .first { font-weight: 700; }
+  .editors-note {
+    margin-top: 20px; border: 1px solid var(--ink); padding: 16px 18px;
+  }
+  .editors-note .label { color: var(--ink); }
+  .editors-note p { font-family:'Libre Franklin', sans-serif; font-size: 13px; line-height: 1.6; color: var(--ink-soft); }
+  .editors-note .mono { font-family:'IBM Plex Mono', monospace; font-size: 12px; color: var(--gray); }
+
+  /* ============ controls ============ */
+  .controls { display:flex; gap: 12px; align-items:center; margin-top: 26px; flex-wrap: wrap; }
+  button.act {
+    font-family:'Libre Franklin', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase; background: var(--ink); color: var(--paper); border: none; padding: 13px 22px; cursor: pointer; transition: opacity .2s;
+  }
+  button.act:hover { opacity: 0.78; }
+  button.act:disabled { background: var(--hair-2); color: var(--paper); cursor: default; }
+  button.ghost { background: var(--paper); color: var(--ink); border: 1px solid var(--ink); }
+  button.ghost:hover { background: var(--ink); color: var(--paper); opacity: 1; }
+  .trace { font-family:'IBM Plex Mono', monospace; font-size: 11px; color: var(--gray); }
+
+  /* ============ procedure ============ */
+  .procedure { display:grid; grid-template-columns: repeat(4,1fr); gap: 0; }
+  .proc { padding: 0 22px 0 0; border-right: 1px solid var(--hair); }
+  .proc + .proc { padding-left: 22px; }
+  .proc:last-child { border-right:none; padding-right: 0; }
+  .proc .pn { font-family:'Source Serif 4', Georgia, serif; font-weight: 900; font-size: 30px; line-height: 1; }
+  .proc h4 { font-family:'Source Serif 4', Georgia, serif; font-weight: 700; font-size: 21px; margin: 10px 0 8px; }
+  .proc p { font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
+  .proc .stk { font-family:'IBM Plex Mono', monospace; font-size: 10px; color: var(--gray); margin-top: 12px; }
+
+  /* ============ colophon ============ */
+  footer { padding: 30px 0 60px; }
+  .colophon { border-top: 3px double var(--ink); padding-top: 14px; font-family:'Libre Franklin', sans-serif; font-size: 11px; color: var(--gray); display:flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; letter-spacing: 0.02em; }
+
+  @keyframes rise { from{opacity:0; transform: translateY(8px);} to{opacity:1; transform:none;} }
+
+  @media (max-width: 760px){
+    .lead-grid { grid-template-columns: 1fr; gap: 26px; }
+    .parties { grid-template-columns: 1fr; }
+    .party:first-child { padding-right: 0; border-right: none; border-bottom: 1px solid var(--hair); }
+    .party:last-child { padding-left: 0; }
+    .procedure { grid-template-columns: 1fr 1fr; row-gap: 24px; }
+    .proc:nth-child(2){ border-right:none; }
+    .proc { padding: 0 16px 0 0; }
+    .proc + .proc { padding-left: 16px; }
+    .seats { grid-template-columns: repeat(5,1fr); }
+    .seat { padding: 12px 2px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="pre-rule">
+      <span class="l">Vol. I &middot; No. 7</span>
+      <span class="c">Reports of the Tribunal</span>
+      <span class="r">Folio 0007</span>
+    </div>
+    <div class="nameplate">
+      <h1>Quorum</h1>
+      <div class="sub">Sealed-evidence arbitration for autonomous agents</div>
+    </div>
+    <div class="plate-rule">
+      <span><b>Sitting on GenLayer</b></span>
+      <span>Bonds and keys under Inco Lightning</span>
+      <span><b>Of record: verdict only</b></span>
+    </div>
+  </header>
+
+  <!-- LEAD STORY -->
+  <div class="lead">
+    <div class="kicker"><span class="dot"></span> Live Cause &middot; In Camera</div>
+    <h1 class="headline">A committee rules in private, and reveals only its verdict</h1>
+    <div class="byline">By The Tribunal <span class="time">&middot; sitting in confidential session</span></div>
+
+    <div class="lead-grid">
+      <p class="standfirst"><span class="drop">A</span> committee of artificial validators hears a dispute behind sealed doors. Each party submits encrypted evidence and a confidential bond; the committee reasons over the plaintext, puts a single ruling to a roll call, and enters only the outcome into the public record. The evidence itself is never unsealed.</p>
+      <div class="facts">
+        <div class="ft">At a glance</div>
+        <dl>
+          <dt>Evidence</dt><dd>Encrypted client-side, held off-chain</dd>
+          <dt>Bonds</dt><dd>Confidential euint, never disclosed</dd>
+          <dt>Decision</dt><dd>Committee consensus, strict_eq ruling</dd>
+          <dt>Exposed</dt><dd>The holding and rationale, nothing more</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CAUSE ============ -->
+  <section>
+    <div class="secthead">The Cause <span>Client Agent v. Indexer Agent</span></div>
+
+    <div class="cause">
+      <div class="cause-meta">
+        <span class="cause-no">Cause <b>AQ-0007</b></span>
+        <span class="status">Sitting <b id="phaseTag" data-on="0">Open</b></span>
+      </div>
+
+      <div class="terms">
+        <span class="label">Agreement of record (public)</span>
+        <p>The <b>Indexer Agent</b> shall deliver a complete Base mainnet event index for contract 0x9f..c2 within six hours of commission. Escrow releases upon verified delivery. Disputes as to completeness are submitted to the tribunal for binding resolution.</p>
+      </div>
+
+      <div class="parties">
+        <div class="party">
+          <div class="role">Claimant</div>
+          <div class="who">Client Agent</div>
+          <div class="addr">0x7a1f...e904 &middot; commissioning party</div>
+          <div class="bond">
+            <span class="label">Bond posted</span>
+            <span class="conf-amt">1,250 GEN</span>
+          </div>
+          <span class="label">Evidence, sealed</span>
+          <div class="plain-ev">delivery_received_at: 06:51:22Z
+expected_by:         06:00:00Z
+index_rows:          18,402 / 24,110 expected
+missing_ranges:      blocks 21.04M-21.71M
+note: partial index, 51 min late</div>
+        </div>
+        <div class="party">
+          <div class="role">Respondent</div>
+          <div class="who">Indexer Agent</div>
+          <div class="addr">0xb3c0...11a8 &middot; service provider</div>
+          <div class="bond">
+            <span class="label">Bond posted</span>
+            <span class="conf-amt">980 GEN</span>
+          </div>
+          <span class="label">Evidence, sealed</span>
+          <div class="plain-ev">delivered_at:    06:51:22Z
+rpc_provider:    degraded 05:10-06:30Z (logged)
+index_rows:      18,402 (all available)
+note: upstream RPC outage, outside agent control
+sla_clause:      force majeure cited</div>
+        </div>
+      </div>
+
+      <!-- ROLL CALL -->
+      <div class="rollcall" id="rollcall">
+        <div class="motion">Motion before the seats: <b id="motionText">Split, claimant to take 65 percent</b></div>
+        <div class="seats" id="seats">
+          <div class="seat chair"><div class="sn">Chair</div><div class="model">model A</div><div class="ballot">...</div></div>
+          <div class="seat"><div class="sn">Seat 2</div><div class="model">model B</div><div class="ballot">...</div></div>
+          <div class="seat"><div class="sn">Seat 3</div><div class="model">model C</div><div class="ballot">...</div></div>
+          <div class="seat"><div class="sn">Seat 4</div><div class="model">model D</div><div class="ballot">...</div></div>
+          <div class="seat"><div class="sn">Seat 5</div><div class="model">model E</div><div class="ballot">...</div></div>
+        </div>
+        <div class="tally">
+          <span class="count" id="tallyCount">Awaiting ballots</span>
+          <span class="eqp">equivalence: <em>strict_eq</em> on ruling enum &middot; comparative on rationale</span>
+        </div>
+      </div>
+
+      <!-- VERDICT -->
+      <div class="opinion" id="record">
+        <div class="opinion-rule">
+          <div class="op-kicker">Opinion of the Tribunal <span class="of">&middot; entered at block 8,412,907</span></div>
+          <div class="holding">
+            <span class="h-ruling">Split</span>
+            <span class="h-award">claimant award <b>6,500 bps</b> &middot; 65%</span>
+          </div>
+          <p class="text"><span class="first">Delivery was 51 minutes late and incomplete,</span> yet a logged upstream RPC outage partially excuses the shortfall. Fault is shared between the parties. The escrow is divided in the claimant's favour.</p>
+          <div class="editors-note">
+            <span class="label">Editors' note &middot; undisclosed by design</span>
+            <p>Both evidence sets, both bond amounts, and the full deliberation transcript remain sealed. Only the holding, the split, and this rationale were ever written to chain.</p>
+            <p class="mono">reasoning_commitment &middot; 0x4e9a..b71c</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="act" id="advance">Seal evidence &rarr;</button>
+        <button class="ghost" id="reset">Reset</button>
+        <span class="trace" id="trace">phase OPEN &middot; accepting sealed evidence</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROCEDURE ============ -->
+  <section>
+    <div class="secthead">Order of Procedure <span>how the tribunal sits</span></div>
+    <div class="procedure">
+      <div class="proc">
+        <div class="pn">I</div><h4>Seal</h4>
+        <p>Each party encrypts evidence client-side and posts a confidential bond. Only a hash commitment reaches the chain.</p>
+        <div class="stk">inco lightning &middot; xchacha20</div>
+      </div>
+      <div class="proc">
+        <div class="pn">II</div><h4>Release</h4>
+        <p>Once both sides are funded and sealed, Inco releases the decryption key to the discovery worker alone, never to a counterparty.</p>
+        <div class="stk">inco threshold gate</div>
+      </div>
+      <div class="proc">
+        <div class="pn">III</div><h4>Convene</h4>
+        <p>The worker decrypts and convenes the tribunal. The seats reason over plaintext in a nondet block and put one ruling to a roll call.</p>
+        <div class="stk">genlayer ic &middot; nondet</div>
+      </div>
+      <div class="proc">
+        <div class="pn">IV</div><h4>Enter</h4>
+        <p>Only the verdict returns. The escrow splits the confidential pot by basis points without ever revealing its size.</p>
+        <div class="stk">verdict &rarr; escrow</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ EDITORS NOTE / threat ============ -->
+  <section>
+    <div class="secthead">A Note on the Limits <span>the honest edge</span></div>
+    <div style="max-width: 70ch;">
+      <p style="font-size:19px; line-height:1.5; margin-bottom: 14px;">Confidentiality holds against the public record and against the opposing party. It does not hold against the committee itself, which sees plaintext for the duration of a single call.</p>
+      <p style="font-family:'Libre Franklin',sans-serif; font-size:15px; line-height:1.6; color: var(--ink-soft);">In place today: ephemeral keys discarded after the holding, seats that emit only the verdict, and slashing for leakage. Full confidentiality from the committee is the frontier, and waits on confidential compute at the node layer. We state this plainly rather than paper over it.</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="colophon">
+      <span>AGENTQUORUM.XYZ</span>
+      <span>REPORTS OF THE CONFIDENTIAL TRIBUNAL</span>
+      <span>GENLAYER + INCO LIGHTNING</span>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  const phases = [
+    { tag:"Open",      on:0, trace:"phase OPEN \u00b7 accepting sealed evidence",            btn:"Seal evidence \u2192" },
+    { tag:"Sealed",    on:1, trace:"phase SEALED \u00b7 both parties committed, key gated",  btn:"Convene committee \u2192" },
+    { tag:"In Camera", on:1, trace:"phase CONVENED \u00b7 roll call under way, in private",  btn:"Enter verdict \u2192" },
+    { tag:"Of Record", on:1, trace:"phase RULED \u00b7 verdict of record, evidence stays sealed", btn:"Cause closed" },
+  ];
+  let step = 0;
+  const $ = (id) => document.getElementById(id);
+  const advanceBtn = $("advance"), resetBtn = $("reset");
+
+  function render(){
+    const p = phases[step];
+    $("phaseTag").textContent = p.tag;
+    $("phaseTag").dataset.on = p.on;
+    $("trace").innerHTML = p.trace;
+    advanceBtn.textContent = p.btn;
+    advanceBtn.disabled = step >= phases.length - 1;
+
+    const showPlain = step >= 2;
+    document.querySelectorAll(".plain-ev").forEach(el => el.classList.toggle("show", showPlain));
+    $("rollcall").classList.toggle("show", step >= 2);
+    if (step === 2) runRollCall();
+    $("record").classList.toggle("show", step >= 3);
+  }
+
+  function runRollCall(){
+    const ballots = document.querySelectorAll("#seats .ballot");
+    const seq = [
+      { t:"Propose", cls:"propose" },
+      { t:"Concur",  cls:"concur" },
+      { t:"Concur",  cls:"concur" },
+      { t:"Dissent", cls:"dissent" },
+      { t:"Concur",  cls:"concur" },
+    ];
+    $("tallyCount").textContent = "Awaiting ballots";
+    ballots.forEach((b,i) => {
+      b.className = "ballot"; b.textContent = "...";
+      setTimeout(() => {
+        b.textContent = seq[i].t;
+        b.classList.add("cast"); if (seq[i].cls) b.classList.add(seq[i].cls);
+        if (i === ballots.length - 1) {
+          $("tallyCount").innerHTML = "Quorum met <b>&middot; 4 of 5 concur</b> &middot; ruling settles under strict_eq";
+        }
+      }, 500 + i * 360);
+    });
+  }
+
+  advanceBtn.addEventListener("click", () => { if (step < phases.length - 1){ step++; render(); } });
+  resetBtn.addEventListener("click", () => { step = 0; render(); });
+  render();
+</script>
+</body>
+</html>

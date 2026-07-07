@@ -1,0 +1,24 @@
+# gltest.config.yaml - GenLayer testing suite
+# Run with: gltest
+# Tests deploy the tribunal to a real network (Studio/localnet) and exercise
+# the full lifecycle. stdout/stderr matching works on studionet + localnet only.
+
+networks:
+  default: studionet
+
+  localnet:
+    url: "http://127.0.0.1:4000/api"
+    leader_only: false
+
+  studionet:
+    # Pre-configured. Accounts are generated automatically.
+    leader_only: false
+
+  testnet_asimov:
+    # Requires funded accounts.
+    accounts:
+      - "${GENLAYER_PRIVATE_KEY}"
+
+# Where the contracts under test live.
+contracts:
+  root: "genlayer"

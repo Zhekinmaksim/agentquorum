@@ -1,0 +1,38 @@
+{
+  "name": "agentquorum",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Confidential sealed-evidence arbitration for autonomous agents. GenLayer Intelligent Contract tribunal + Inco Lightning confidential escrow.",
+  "license": "MIT",
+  "scripts": {
+    "build:contracts": "cd contracts && forge build ConfidentialEscrow.sol",
+    "abi": "node scripts/extract-abi.mjs",
+    "dryrun": "node --import tsx offchain/dryrun.ts",
+    "e2e:live": "node --env-file=.env --import tsx offchain/e2e.ts",
+    "resume:ready": "node --env-file=.env --import tsx offchain/resume-ready.ts",
+    "deploy:escrow": "cd contracts && forge script script/Deploy.s.sol:Deploy --rpc-url $BASE_SEPOLIA_RPC --broadcast",
+    "deploy:tribunal": "node --env-file=.env --import tsx deploy/deployScript.ts",
+    "open:cause": "node --env-file=.env --import tsx deploy/open-cause.ts",
+    "test:tribunal": "gltest",
+    "worker": "node --env-file=.env --import tsx offchain/worker.ts",
+    "seal": "node --env-file=.env --import tsx offchain/seal.ts"
+  },
+  "dependencies": {
+    "@inco/js": "^0.7.12",
+    "@inco/lightning": "^1.0.2",
+    "@noble/ciphers": "1.3.0",
+    "@noble/hashes": "1.8.0",
+    "ethers": "6.13.0",
+    "genlayer-js": "0.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "tsx": "4.22.4",
+    "typescript": "5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "comment_versions": "@noble/ciphers@1.3.0 and @noble/hashes@1.8.0 are VERIFIED (npm run dryrun passes). @inco/js@0.1.41, @inco/lightning@1.0.1, and genlayer-js@0.7.0 are wired to the installed package surfaces used in this repo."
+}
