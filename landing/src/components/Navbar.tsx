@@ -2,7 +2,12 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import QuorumMark from "./QuorumMark";
 
-const LINKS = ["procedure", "cases", "documentation", "the record"];
+const LINKS = [
+  { label: "procedure", href: "#procedure" },
+  { label: "cases", href: "#record" },
+  { label: "documentation", href: "#documentation" },
+  { label: "the record", href: "#opinion" },
+];
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
@@ -14,14 +19,14 @@ export default function Navbar() {
           <span className="font-plate text-[22px] leading-none">Quorum</span>
         </div>
         <nav className="hidden md:flex gap-6">
-          {LINKS.map((l) => (
-            <a key={l} href="#" className="font-sans text-[12px] lowercase text-ink-soft hover:text-ink transition-colors">
-              {l}
+          {LINKS.map((link) => (
+            <a key={link.label} href={link.href} className="font-sans text-[12px] lowercase text-ink-soft hover:text-ink transition-colors">
+              {link.label}
             </a>
           ))}
         </nav>
         <div className="flex items-center gap-3">
-          <a href="#" className="inline-flex items-center gap-1.5 bg-ink text-white font-sans text-[12px] font-600 px-3.5 py-1.5 hover:bg-oxblood transition-colors">
+          <a href="#cause-intake" className="inline-flex items-center gap-1.5 bg-ink text-white font-sans text-[12px] font-600 px-3.5 py-1.5 hover:bg-oxblood transition-colors">
             open a cause <span aria-hidden>&rarr;</span>
           </a>
           <button
@@ -45,9 +50,14 @@ export default function Navbar() {
             className="md:hidden overflow-hidden border-t border-hair"
           >
             <div className="flex flex-col px-7 py-2">
-              {LINKS.map((l) => (
-                <a key={l} href="#" className="font-sans text-[14px] lowercase text-ink-soft py-2 border-b border-hair last:border-0">
-                  {l}
+              {LINKS.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className="font-sans text-[14px] lowercase text-ink-soft py-2 border-b border-hair last:border-0"
+                >
+                  {link.label}
                 </a>
               ))}
             </div>

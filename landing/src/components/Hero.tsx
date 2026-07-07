@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { motion } from "motion/react";
 
+const GITHUB_REPO = "https://github.com/Zhekinmaksim/agentquorum";
 const INSIDE = [
-  ["Order of Procedure", "How a cause is sealed, heard, and entered."],
-  ["The Record", "Published holdings. Evidence stays sealed."],
-  ["Documentation", "Contracts, worker, threat model."],
-  ["Grant Dossier", "Why privacy meets judgment here."],
+  { title: "Order of Procedure", blurb: "How a cause is sealed, heard, and entered.", href: "#procedure" },
+  { title: "The Record", blurb: "Published holdings. Evidence stays sealed.", href: "#record" },
+  { title: "Documentation", blurb: "Contracts, worker, threat model.", href: "#documentation" },
+  { title: "Grant Dossier", blurb: "Repository, architecture, and deployment record.", href: GITHUB_REPO },
 ];
 
 const SEATS: [string, string][] = [
@@ -18,6 +20,24 @@ const seatColor = (label: string) =>
   label === "Dissent" ? "text-oxblood" : label === "Propose" ? "text-ink" : "text-[#2f6b35]";
 
 export default function Hero() {
+  const [draft, setDraft] = useState("");
+
+  function openCauseDraft() {
+    const summary = draft.trim();
+    const title = summary ? `Cause intake: ${summary.slice(0, 72)}` : "Cause intake";
+    const body = [
+      "Proposed dispute",
+      "",
+      summary || "(Describe the dispute here.)",
+      "",
+      "---",
+      "Submitted from the AgentQuorum landing page.",
+    ].join("\n");
+
+    const url = `${GITHUB_REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <section className="bg-bg-base">
       <div className="max-w-[1180px] mx-auto px-7 pt-[62px] pb-10">
@@ -47,10 +67,10 @@ export default function Hero() {
           {/* LEFT RAIL */}
           <div className="lg:pr-6 lg:border-r lg:border-hair pt-6">
             <div className="font-sans text-[11px] font-800 tracking-[0.12em] uppercase border-b-2 border-ink pb-1.5 mb-3">Inside</div>
-            {INSIDE.map(([t, g]) => (
-              <a key={t} href="#" className="block py-3 border-b border-hair group">
-                <div className="font-display font-600 text-[17px] leading-tight group-hover:text-oxblood transition-colors">{t}</div>
-                <div className="font-sans text-[11.5px] text-gray-450 mt-1">{g}</div>
+            {INSIDE.map((item) => (
+              <a key={item.title} href={item.href} className="block py-3 border-b border-hair group">
+                <div className="font-display font-600 text-[17px] leading-tight group-hover:text-oxblood transition-colors">{item.title}</div>
+                <div className="font-sans text-[11.5px] text-gray-450 mt-1">{item.blurb}</div>
               </a>
             ))}
             <div className="mt-4 border border-ink p-3 font-mono text-[10.5px] leading-relaxed text-ink-soft">
@@ -88,19 +108,32 @@ export default function Hero() {
               <p className="mb-2.5">Each party submits encrypted evidence and a confidential bond. A committee of artificial validators reasons over the plaintext behind sealed doors, puts a single ruling to a roll call, and enters only the outcome into the public record.</p>
               <p>The evidence itself is never unsealed. Bond amounts are never disclosed. What survives onto the chain is the holding, the split, and a short rationale. It is the one pairing the field is not building: GenLayer's judgment over Inco Lightning's confidentiality.</p>
             </div>
-            <div className="mt-4 border-t-2 border-ink pt-3.5">
+            <div id="cause-intake" className="mt-4 border-t-2 border-ink pt-3.5">
               <div className="font-sans text-[11px] font-800 tracking-[0.08em] uppercase mb-2">Submit a cause to the tribunal</div>
               <div className="bg-white border border-black/[0.12] pl-3.5 pr-1 py-1 flex items-center">
-                <input placeholder="Describe the dispute..." className="bg-transparent flex-1 outline-none font-sans text-[14px] text-ink placeholder:text-gray-350 py-2" />
-                <button aria-label="Open a cause" className="bg-ink text-white w-[34px] h-[34px] flex items-center justify-center hover:bg-oxblood transition-colors shrink-0">
+                <input
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder="Describe the dispute..."
+                  className="bg-transparent flex-1 outline-none font-sans text-[14px] text-ink placeholder:text-gray-350 py-2"
+                />
+                <button
+                  type="button"
+                  aria-label="Open a cause"
+                  onClick={openCauseDraft}
+                  className="bg-ink text-white w-[34px] h-[34px] flex items-center justify-center hover:bg-oxblood transition-colors shrink-0"
+                >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </button>
+              </div>
+              <div className="mt-2 font-sans text-[11px] text-gray-450">
+                This MVP opens a prefilled GitHub issue instead of a live on-chain case flow.
               </div>
             </div>
           </div>
 
           {/* SPECIMEN CAUSE (the hook) */}
-          <div className="lg:pl-6 pt-6">
+          <div id="record" className="lg:pl-6 pt-6">
             <div className="font-sans text-[11px] font-800 tracking-[0.12em] uppercase border-b-2 border-ink pb-1.5 mb-3">Specimen Cause</div>
             <div className="border-2 border-ink">
               <div className="bg-ink text-bg-base px-3.5 py-2 font-sans text-[11px] font-700 tracking-[0.14em] uppercase flex justify-between">
@@ -149,6 +182,7 @@ export default function Hero() {
                   </div>
                 </div>
                 <motion.div
+                  id="opinion"
                   initial={{ opacity: 0, scale: 1.03 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 3.1, duration: 0.5 }}
@@ -164,6 +198,42 @@ export default function Hero() {
                   </div>
                 </motion.div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr] gap-8 mt-8">
+          <div id="procedure" className="border-t-[3px] border-double border-ink pt-4">
+            <div className="font-sans text-[11px] font-800 tracking-[0.12em] uppercase mb-3">Order of Procedure</div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              {[
+                ["Open", "Create the cause and post the terms."],
+                ["Seal", "Encrypt evidence and commit its hash."],
+                ["Release", "Gate the evidence keys to the worker only."],
+                ["Convene", "Let the tribunal review plaintext in private."],
+                ["Enter", "Settle the encrypted pot from the verdict."],
+              ].map(([step, detail]) => (
+                <div key={step} className="border border-hair p-3 bg-white/60">
+                  <div className="font-sans text-[10px] font-800 tracking-[0.08em] uppercase text-oxblood">{step}</div>
+                  <div className="font-display text-[15px] leading-snug mt-1.5 text-ink-soft">{detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div id="documentation" className="border-t-[3px] border-double border-ink pt-4">
+            <div className="font-sans text-[11px] font-800 tracking-[0.12em] uppercase mb-3">Documentation</div>
+            <div className="space-y-3">
+              {[
+                { label: "Repository", href: GITHUB_REPO, note: "Full project source, deploy scripts, and worker code." },
+                { label: "Architecture", href: `${GITHUB_REPO}/blob/main/docs/ARCHITECTURE.md`, note: "Threat model, data flow, and confidentiality boundary." },
+                { label: "README", href: `${GITHUB_REPO}#readme`, note: "Main contract files, run order, and status." },
+              ].map((link) => (
+                <a key={link.label} href={link.href} target="_blank" rel="noreferrer" className="block border border-hair p-3 bg-white/60 hover:border-ink transition-colors">
+                  <div className="font-display font-700 text-[18px] leading-tight">{link.label}</div>
+                  <div className="font-sans text-[11.5px] text-gray-450 mt-1">{link.note}</div>
+                </a>
+              ))}
             </div>
           </div>
         </div>

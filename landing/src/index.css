@@ -12,6 +12,9 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-bg-base text-ink font-sans antialiased;
   }
