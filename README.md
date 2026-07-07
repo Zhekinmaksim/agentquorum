@@ -10,18 +10,6 @@ ruling, and sends only the verdict back on-chain. The bond amounts stay
 confidential under Inco Lightning, and the evidence is never exposed to the
 counterparty.
 
-## Main Contract Files
-
-`genlayer/tribunal.py`
-
-`contracts/ConfidentialEscrow.sol`
-
-`contracts/script/Deploy.s.sol`
-
-`deploy/deployScript.ts`
-
-`deploy/open-cause.ts`
-
 In plain terms:
 
 - **GenLayer** handles judgment. A committee of validators can reason over
