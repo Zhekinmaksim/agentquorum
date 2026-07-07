@@ -6,6 +6,7 @@ node_modules/
 contracts/node_modules/
 landing/node_modules/
 .blobs/
+.vercel/
 dist/
 build/
 out/
