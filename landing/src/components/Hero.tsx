@@ -190,6 +190,9 @@ export default function Hero() {
                   transition={{ delay: 3.1, duration: 0.5 }}
                   className="mt-3 border-t-[3px] border-double border-ink pt-2.5"
                 >
+                  <div className="font-sans text-[9px] font-800 uppercase tracking-[0.16em] text-gray-450 mb-1">
+                    Published Verdict
+                  </div>
                   <div className="font-sans text-[10px] font-800 uppercase tracking-[0.07em]">Opinion of the Tribunal</div>
                   <div className="flex items-baseline gap-3 my-1.5">
                     <span className="font-display font-900 text-[30px] leading-none">Split</span>

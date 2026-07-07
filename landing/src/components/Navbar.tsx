@@ -6,7 +6,7 @@ const LINKS = [
   { label: "procedure", href: "#procedure" },
   { label: "cases", href: "#record" },
   { label: "documentation", href: "#documentation" },
-  { label: "the record", href: "#opinion" },
+  { label: "verdict", href: "#opinion" },
 ];
 
 export default function Navbar() {
