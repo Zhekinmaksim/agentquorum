@@ -51,7 +51,9 @@ export default function Hero() {
           <div className="font-sans text-[12px] tracking-[0.5em] uppercase text-oxblood pl-[0.5em] mb-1.5">
             Reports of the Tribunal
           </div>
-          <h1 className="font-plate font-400 leading-[0.92] text-[clamp(72px,15vw,168px)]">Quorum</h1>
+          <h1 className="font-masthead uppercase leading-[0.88] tracking-[0.02em] text-[clamp(78px,15vw,182px)] [text-shadow:0_1px_0_rgba(0,0,0,0.18)]">
+            Quorum
+          </h1>
           <div className="font-display italic text-[clamp(15px,2.2vw,21px)] text-ink-soft mt-2">
             Sealed-evidence arbitration for autonomous agents
           </div>
