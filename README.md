@@ -2,21 +2,45 @@
 
 **Confidential, sealed-evidence arbitration for autonomous agents.**
 
-Two agents strike a deal. It goes wrong. Today their only recourse is a trusted
-human, a centralized escrow, or a smart contract that cannot read a contract.
-AgentQuorum gives them a tribunal instead: a committee of AI validators that
-reads encrypted evidence in private, rules on the dispute, and publishes only
-the verdict. The evidence itself is never unsealed.
+AgentQuorum is a dispute-resolution flow for agent-to-agent deals.
 
-It is the one combination the rest of the field is not building: GenLayer's
-subjective judgment on top of Inco Lightning's confidentiality.
+Two parties agree on terms, post confidential bonds, and submit sealed evidence.
+If the deal breaks down, a GenLayer tribunal reads the evidence, reaches a
+ruling, and sends only the verdict back on-chain. The bond amounts stay
+confidential under Inco Lightning, and the evidence is never exposed to the
+counterparty.
 
-- **GenLayer** supplies the judgment. An Intelligent Contract lets a committee
-  of validators reason over natural-language terms and messy evidence and reach
-  consensus on a discrete ruling. No oracle, no single model, no trusted judge.
-- **Inco Lightning** supplies the confidentiality. Bonds are encrypted `euint`
-  amounts, and the keys that unlock the evidence are released under on-chain
-  access control, only to the tribunal pipeline, never to a counterparty.
+## Main Contract Files
+
+`genlayer/tribunal.py`
+
+`contracts/ConfidentialEscrow.sol`
+
+`contracts/script/Deploy.s.sol`
+
+`deploy/deployScript.ts`
+
+`deploy/open-cause.ts`
+
+In plain terms:
+
+- **GenLayer** handles judgment. A committee of validators can reason over
+  natural-language terms and messy evidence, then converge on a discrete ruling.
+- **Inco Lightning** handles confidentiality. Bond amounts stay encrypted, and
+  evidence keys are released only to the tribunal pipeline, not to the other
+  side.
+
+## Core Contracts
+
+[`genlayer/tribunal.py`](genlayer/tribunal.py) records cases, seals commitments, stores evidence metadata, and publishes the final verdict.
+
+[`contracts/ConfidentialEscrow.sol`](contracts/ConfidentialEscrow.sol) holds confidential bonds, gates evidence-key release, and settles the encrypted pot after a ruling.
+
+[`contracts/script/Deploy.s.sol`](contracts/script/Deploy.s.sol) deploys the escrow on Base Sepolia.
+
+[`deploy/deployScript.ts`](deploy/deployScript.ts) deploys the tribunal on GenLayer.
+
+[`deploy/open-cause.ts`](deploy/open-cause.ts) opens and links the case on both chains.
 
 ## Why this is hard, and how we resolve it
 
@@ -30,16 +54,18 @@ reviewer see the threat model up front than discover it later.
 ## Repository layout
 
 ```
-genlayer/tribunal.py            GenLayer Intelligent Contract: the tribunal
-contracts/ConfidentialEscrow.sol Inco Lightning escrow: confidential bonds + key gating
+genlayer/tribunal.py             GenLayer tribunal contract
+contracts/ConfidentialEscrow.sol Base escrow contract
 offchain/crypto.ts              shared XChaCha20-Poly1305 seal/unseal + commitment
 offchain/seal.ts                party-side: encrypt evidence, emit submission payload
 offchain/worker.ts              discovery worker: decrypt, convene, relay verdict
 offchain/storage.ts             pluggable blob storage (IPFS or local)
-deploy/deployScript.ts          GenLayer deploy (Studio first)
-contracts/script/Deploy.s.sol   Foundry deploy for the escrow
-web/index.html                  the case-file frontend
-tests/test_tribunal.py          gltest lifecycle + tamper-rejection tests
+deploy/deployScript.ts          tribunal deployment
+contracts/script/Deploy.s.sol   escrow deployment
+deploy/open-cause.ts            cross-chain case opening
+offchain/e2e.ts                 scripted end-to-end flow
+tests/test_tribunal.py          GenLayer tests
+web/index.html                  simple case-file frontend
 ```
 
 ## Lifecycle
@@ -56,6 +82,12 @@ tests/test_tribunal.py          gltest lifecycle + tamper-rejection tests
    ruling under `strict_eq`.
 5. **Enter.** Only the verdict returns. The escrow splits the confidential pot by
    basis points without ever revealing its size.
+
+## What runs where
+
+- **On GenLayer:** case registry, commitments, verdict logic, appeal marker.
+- **On Base Sepolia / Inco:** confidential bond accounting, key gating, payout settlement.
+- **Off-chain worker:** blob fetch, key decrypt, commitment-preserving evidence delivery, verdict relay.
 
 ## Run order
 
@@ -80,17 +112,15 @@ Develop against GenLayer Studio first, then Bradbury / Asimov.
 
 ## Status
 
-This is a working scaffold, not an audited release. Specifically:
+This is a working prototype, not an audited release. The important caveats are:
 
-- The contracts and off-chain code are written and internally consistent, but
-  have not been compiled or deployed in this repository yet.
-- `genlayer-js` `deployContract` fields and the `@inco/js` `encrypt` /
-  `reencryptAndDecrypt` calls are written best-effort and should be verified
-  against the current SDK docs before any testnet run.
-- The GenLayer runner hash in `tribunal.py` is a placeholder. Pin it to a real
-  hash before deploy.
-- Dependency versions in `package.json` are placeholders. Pin them.
-- Confidentiality is not absolute. See the threat model.
+- The design and scripts are real, but the stack still depends on external SDK
+  surfaces from GenLayer and Inco that should be rechecked before a public demo.
+- The real Inco attested-decrypt KMS path is the main integration risk. See the
+  architecture and run notes before treating it as production-ready.
+- Confidentiality is limited by today's execution model: the validator
+  committee sees plaintext during deliberation. See
+  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the exact threat model.
 
 ## License
 
