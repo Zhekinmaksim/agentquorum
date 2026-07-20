@@ -513,7 +513,7 @@ export default function LiveConsole() {
   const parsedVerdict = safeJson(lookup?.verdict ?? null);
 
   return (
-    <section id="live-state" className="max-w-[1180px] mx-auto px-7 pb-14">
+    <section id="live-state" className="max-w-[1180px] mx-auto px-7 pb-6">
       <div className="border-t-[3px] border-double border-ink pt-4">
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
@@ -843,7 +843,7 @@ export default function LiveConsole() {
             </div>
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-5 lg:sticky lg:top-[76px] lg:self-start">
             <div className="border border-ink bg-white/70 p-4">
               <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">Verdict Fetch Flow</div>
               <div className="flex gap-3 mt-3">

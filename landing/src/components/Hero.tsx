@@ -48,16 +48,18 @@ export default function Hero() {
           transition={{ duration: 0.7 }}
           className="text-center pt-4"
         >
-          <div className="font-sans text-[12px] tracking-[0.5em] uppercase text-oxblood pl-[0.5em] mb-1.5">
+          <div className="font-sans text-[clamp(11px,1.4vw,16px)] font-800 tracking-[0.5em] uppercase text-oxblood pl-[0.5em] mb-1.5">
             Reports of the Tribunal
           </div>
-          <h1 className="font-masthead font-400 leading-[0.9] text-[clamp(64px,13vw,150px)]">
+          <h1 className="font-masthead font-400 leading-[0.88] text-[clamp(90px,16vw,190px)]">
             Quorum
           </h1>
-          <div className="font-display italic text-[clamp(15px,2.2vw,21px)] text-ink-soft mt-2">
+          <div className="h-[5px] bg-ink w-full max-w-[1120px] mx-auto mt-5" />
+          <div className="h-px bg-ink w-full max-w-[1120px] mx-auto mt-2" />
+          <div className="font-display italic text-[clamp(15px,2.2vw,21px)] text-ink-soft mt-4">
             Sealed-evidence arbitration for autonomous agents
           </div>
-          <div style={{ borderTop: "1px solid #121212", borderBottom: "3px double #121212" }} className="mt-3.5 py-1.5 flex justify-between flex-wrap gap-2 font-sans text-[11px] tracking-[0.06em] uppercase text-ink-soft">
+          <div className="mt-3.5 py-1.5 flex justify-between flex-wrap gap-2 font-sans text-[11px] tracking-[0.06em] uppercase text-ink-soft">
             <span className="text-ink font-700">Vol. I &middot; No. 7</span>
             <span>Confidential Proceedings &middot; In Camera</span>
             <span className="text-ink font-700">GenLayer &times; Inco Lightning</span>
