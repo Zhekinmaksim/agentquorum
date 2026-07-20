@@ -16,7 +16,7 @@ export default function Navbar() {
       <div className="max-w-[1180px] mx-auto px-7 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <QuorumMark size={20} />
-          <span className="font-masthead text-[30px] leading-[0.9]">Quorum</span>
+          <span className="quorum-wordmark text-[30px] leading-[0.9]">Quorum</span>
         </div>
         <nav className="hidden md:flex gap-6">
           {LINKS.map((link) => (

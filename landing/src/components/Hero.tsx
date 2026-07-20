@@ -51,7 +51,7 @@ export default function Hero() {
           <div className="font-sans text-[clamp(11px,1.4vw,16px)] font-800 tracking-[0.5em] uppercase text-oxblood pl-[0.5em] mb-1.5">
             Reports of the Tribunal
           </div>
-          <h1 className="font-masthead font-400 leading-[0.88] text-[clamp(90px,16vw,190px)]">
+          <h1 className="quorum-wordmark leading-[0.88] text-[clamp(96px,17vw,198px)]">
             Quorum
           </h1>
           <div className="h-[5px] bg-ink w-full max-w-[1120px] mx-auto mt-5" />

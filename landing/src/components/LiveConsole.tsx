@@ -511,6 +511,13 @@ export default function LiveConsole() {
 
   const parsedTribunalCase = safeJson(lookup?.tribunalCase ?? null);
   const parsedVerdict = safeJson(lookup?.verdict ?? null);
+  const workflowSteps = [
+    { label: "Connect", value: wallet ? "Ready" : "Required", active: !wallet },
+    { label: "Open", value: submitHash ? "Sent" : nextCaseId || "AQ-n", active: !!wallet && !submitHash },
+    { label: "Seal", value: sealedDraft ? "Sealed" : "Local", active: !!submitHash && !sealedDraft },
+    { label: "Publish", value: basePublish || genPublishTx ? "In progress" : "Both chains", active: !!sealedDraft && !(basePublish && genPublishTx) },
+    { label: "Monitor", value: lookup?.escrowPhase ?? "Fetch", active: !!lookup },
+  ];
 
   return (
     <section id="live-state" className="max-w-[1180px] mx-auto px-7 pb-6">
@@ -518,7 +525,7 @@ export default function LiveConsole() {
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <div className="font-sans text-[11px] font-800 tracking-[0.12em] uppercase text-oxblood">Live Console</div>
-            <div className="font-display text-[28px] leading-tight mt-1">Wallet, seal, submit, verdict, and live chain state.</div>
+            <div className="font-display text-[28px] leading-tight mt-1">Run a confidential case from the page.</div>
           </div>
           <button
             type="button"
@@ -529,10 +536,19 @@ export default function LiveConsole() {
           </button>
         </div>
 
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-5">
+          {workflowSteps.map((step, index) => (
+            <div key={step.label} className={`border p-3 ${step.active ? "border-ink bg-white" : "border-hair bg-white/60"}`}>
+              <div className="font-sans text-[9px] font-800 uppercase tracking-[0.12em] text-gray-450">{index + 1}. {step.label}</div>
+              <div className="font-display text-[18px] leading-none mt-1">{step.value}</div>
+            </div>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-8 mt-5">
           <div className="space-y-5">
-            <div className="border border-ink bg-white/70 p-4">
-              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">Network Snapshot</div>
+            <details className="border border-hair bg-white/60 p-4">
+              <summary className="cursor-pointer font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">Advanced network snapshot</summary>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                 <div className="border border-hair p-3">
                   <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Tribunal</div>
@@ -557,10 +573,10 @@ export default function LiveConsole() {
                   <div className="font-mono text-[11px] mt-1 break-all">{network.worker || "Loading..."}</div>
                 </div>
               </div>
-            </div>
+            </details>
 
             <div className="border border-ink bg-white/70 p-4">
-              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">Wallet Flow</div>
+              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">1. Connect Wallet</div>
               <div className="mt-3 flex flex-wrap gap-3 items-center">
                 {wallet ? (
                   <div className="font-display text-[18px]">
@@ -607,7 +623,7 @@ export default function LiveConsole() {
             </div>
 
             <div className="border border-ink bg-white/70 p-4">
-              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">Submit Flow</div>
+              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">2. Open Escrow Case</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                 <label className="block">
                   <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450 mb-1">Suggested Case ID</div>
@@ -650,10 +666,8 @@ export default function LiveConsole() {
             </div>
 
             <div className="border border-ink bg-white/70 p-4">
-              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">Confidential Seal Flow</div>
-              <div className="mt-2 font-sans text-[11px] text-gray-450">
-                The browser seals plaintext locally, derives a commitment, encrypts the symmetric key and bond for Inco, then lets you publish to GenLayer and Base as separate real transactions.
-              </div>
+              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">3. Seal Evidence Locally</div>
+              <div className="mt-2 font-sans text-[11px] text-gray-450">Plaintext stays in the browser. The page produces a ciphertext blob, a commitment, and encrypted Inco inputs.</div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                 <label className="block">
@@ -736,6 +750,41 @@ export default function LiveConsole() {
                 >
                   {busy === "seal" ? "Sealing..." : "Seal in Browser"}
                 </button>
+              </div>
+
+              {sealedDraft && (
+                <div className="space-y-3 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="border border-hair p-3">
+                      <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Commitment</div>
+                      <div className="font-mono text-[11px] mt-1 break-all">{sealedDraft.commitment}</div>
+                    </div>
+                    <div className="border border-hair p-3">
+                      <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Case Key</div>
+                      <div className="font-mono text-[11px] mt-1 break-all">{sealedDraft.caseKey}</div>
+                    </div>
+                    <div className="border border-hair p-3">
+                      <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Ciphertext Blob</div>
+                      <div className="font-sans text-[11px] mt-1">{sealedDraft.blobSize} bytes</div>
+                      <a
+                        href={sealedDraft.downloadUrl}
+                        download={sealedDraft.fileName}
+                        className="inline-block mt-2 font-sans text-[11px] uppercase tracking-[0.08em] underline underline-offset-2"
+                      >
+                        Download blob
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {sealError && <div className="mt-2 font-sans text-[11px] text-oxblood">{sealError}</div>}
+            </div>
+
+            <div className="border border-ink bg-white/70 p-4">
+              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">4. Publish Sealed Inputs</div>
+              <div className="mt-2 font-sans text-[11px] text-gray-450">Publish the commitment and blob URI to GenLayer, then publish encrypted bond and key to Base Sepolia.</div>
+              <div className="mt-3 flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={() => { void switchToGenLayer(); }}
@@ -777,29 +826,9 @@ export default function LiveConsole() {
               </div>
 
               {sealedDraft && (
-                <div className="space-y-3 mt-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="border border-hair p-3">
-                      <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Commitment</div>
-                      <div className="font-mono text-[11px] mt-1 break-all">{sealedDraft.commitment}</div>
-                    </div>
-                    <div className="border border-hair p-3">
-                      <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Case Key</div>
-                      <div className="font-mono text-[11px] mt-1 break-all">{sealedDraft.caseKey}</div>
-                    </div>
-                    <div className="border border-hair p-3">
-                      <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Blob</div>
-                      <div className="font-sans text-[11px] mt-1">{sealedDraft.blobSize} bytes</div>
-                      <a
-                        href={sealedDraft.downloadUrl}
-                        download={sealedDraft.fileName}
-                        className="inline-block mt-2 font-sans text-[11px] uppercase tracking-[0.08em] underline underline-offset-2"
-                      >
-                        Download ciphertext blob
-                      </a>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <details className="mt-4 border border-hair p-3">
+                  <summary className="cursor-pointer font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Encrypted payload details</summary>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                     <div className="border border-hair p-3">
                       <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Encrypted Bond</div>
                       <div className="font-mono text-[11px] mt-1 break-all">{sealedDraft.bondCt}</div>
@@ -809,7 +838,7 @@ export default function LiveConsole() {
                       <div className="font-mono text-[11px] mt-1 break-all">{sealedDraft.keyCt}</div>
                     </div>
                   </div>
-                </div>
+                </details>
               )}
 
               {genPublishTx && (
@@ -836,7 +865,6 @@ export default function LiveConsole() {
                 </div>
               )}
 
-              {sealError && <div className="mt-2 font-sans text-[11px] text-oxblood">{sealError}</div>}
               {genPublishError && <div className="mt-2 font-sans text-[11px] text-oxblood">{genPublishError}</div>}
               {basePublishError && <div className="mt-2 font-sans text-[11px] text-oxblood">{basePublishError}</div>}
               {readyError && <div className="mt-2 font-sans text-[11px] text-oxblood">{readyError}</div>}
@@ -845,7 +873,7 @@ export default function LiveConsole() {
 
           <div className="space-y-5 lg:sticky lg:top-[76px] lg:self-start">
             <div className="border border-ink bg-white/70 p-4">
-              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">Verdict Fetch Flow</div>
+              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">5. Monitor Case</div>
               <div className="flex gap-3 mt-3">
                 <input
                   value={lookupCaseId}
