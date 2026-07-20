@@ -19,7 +19,7 @@ export default {
         display: ["Source Serif 4", "Georgia", "serif"],
         mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
         plate: ["UnifrakturMaguntia", "Source Serif 4", "serif"],
-        masthead: ["Pirata One", "UnifrakturMaguntia", "Source Serif 4", "serif"],
+        masthead: ["UnifrakturMaguntia", "Source Serif 4", "serif"],
       },
       maxWidth: { "7xl": "80rem" },
     },
