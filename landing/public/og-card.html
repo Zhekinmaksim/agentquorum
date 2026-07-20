@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Quorum OG</title>
+<style>
+  @font-face {
+    font-family: "AQ Blackletter";
+    src: url("/fonts/unifraktur-maguntia.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: block;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+    background: #fbfbf8;
+    color: #121212;
+    font-family: "Source Serif 4", Georgia, serif;
+  }
+  .card {
+    position: relative;
+    width: 1200px;
+    height: 630px;
+    padding: 54px 78px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border: 0 solid #121212;
+  }
+  .eyebrow {
+    font: 800 24px/1 "Libre Franklin", system-ui, sans-serif;
+    letter-spacing: 0.46em;
+    color: #7a1620;
+    text-transform: uppercase;
+    padding-left: 0.46em;
+    text-align: center;
+  }
+  .lockup {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 36px;
+    margin-top: 28px;
+  }
+  .mark {
+    width: 148px;
+    height: 148px;
+    flex: none;
+  }
+  .wordmark {
+    font-family: "AQ Blackletter", "UnifrakturMaguntia", serif;
+    font-size: 192px;
+    font-weight: 400;
+    line-height: 0.85;
+    letter-spacing: 0;
+  }
+  .rule {
+    height: 7px;
+    background: #121212;
+    margin-top: 44px;
+  }
+  .rule.thin {
+    height: 2px;
+    margin-top: 10px;
+  }
+  .sub {
+    margin-top: 32px;
+    text-align: center;
+    color: #43413a;
+    font: italic 34px/1.25 "Source Serif 4", Georgia, serif;
+  }
+  .foot {
+    position: absolute;
+    left: 78px;
+    right: 78px;
+    bottom: 42px;
+    display: flex;
+    justify-content: space-between;
+    color: #7c7565;
+    font: 800 18px/1 "Libre Franklin", system-ui, sans-serif;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="eyebrow">Reports of the Tribunal</div>
+    <div class="lockup">
+      <svg class="mark" viewBox="0 0 120 120" aria-hidden="true">
+        <circle cx="60" cy="60" r="50" fill="none" stroke="#121212" stroke-width="4"/>
+        <circle cx="60" cy="10" r="11" fill="#121212"/>
+        <circle cx="107.6" cy="44.6" r="11" fill="#121212"/>
+        <circle cx="89.4" cy="100.4" r="11" fill="#121212"/>
+        <circle cx="30.6" cy="100.4" r="11" fill="#121212"/>
+        <circle cx="12.4" cy="44.6" r="11" fill="#121212"/>
+        <circle cx="60" cy="60" r="6" fill="none" stroke="#121212" stroke-width="4"/>
+      </svg>
+      <div class="wordmark">Quorum</div>
+    </div>
+    <div class="rule"></div>
+    <div class="rule thin"></div>
+    <div class="sub">Sealed-evidence arbitration for autonomous agents</div>
+    <div class="foot">
+      <span>agentquorum.xyz</span>
+      <span>GenLayer + Inco Lightning</span>
+    </div>
+  </div>
+</body>
+</html>
