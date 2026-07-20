@@ -15,6 +15,23 @@ export const escrowAbi = [
   },
   {
     type: "function",
+    name: "fundBond",
+    inputs: [
+      { name: "caseKey", type: "bytes32", internalType: "bytes32" },
+      { name: "bondCt", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "markReady",
+    inputs: [{ name: "caseKey", type: "bytes32", internalType: "bytes32" }],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
     name: "openCase",
     inputs: [
       { name: "caseKey", type: "bytes32", internalType: "bytes32" },
@@ -30,6 +47,16 @@ export const escrowAbi = [
     inputs: [{ name: "caseKey", type: "bytes32", internalType: "bytes32" }],
     outputs: [{ name: "", type: "uint8", internalType: "enum ConfidentialEscrow.Phase" }],
     stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "sealEvidenceKey",
+    inputs: [
+      { name: "caseKey", type: "bytes32", internalType: "bytes32" },
+      { name: "keyCt", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "payable",
   },
   {
     type: "function",

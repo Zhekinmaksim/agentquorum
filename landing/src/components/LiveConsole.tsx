@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
-import { BrowserProvider, Contract, JsonRpcProvider, id as keccakId } from "ethers";
+import { BrowserProvider, Contract, JsonRpcProvider, id as keccakId, parseEther } from "ethers";
 import { createAccount, createClient } from "genlayer-js";
 import { localnet } from "genlayer-js/chains";
+import { TransactionStatus } from "genlayer-js/types";
 import { escrowAbi } from "../lib/escrowAbi";
 
 const BASE_SEPOLIA_RPC = "https://sepolia.base.org";
 const BASE_SEPOLIA_CHAIN_ID = 84532;
 const BASE_SEPOLIA_CHAIN_ID_HEX = "0x14A34";
 const GENLAYER_RPC_URL = "https://studio.genlayer.com/api";
+const GENLAYER_CHAIN_ID = 61999;
 const ESCROW_ADDRESS = "0x0a2b41f8814f310A09e0Fbe256B55464d408666B";
 const TRIBUNAL_ADDRESS = "0x2A9358126C10dB2c64d05A66ae372fD582A93486" as `0x${string}` & { length: 42 };
+const INCO_OP_VALUE = parseEther("0.0001");
 
 const PHASE_LABELS = ["None", "Open", "Ready", "Settled", "Refunded"] as const;
 const DEFAULT_LOOKUP_CASE = "AQ-0";
 
 type WalletState = {
-  address: string;
+  address: `0x${string}`;
   chainId: number;
 };
 
@@ -34,10 +37,30 @@ type LookupState = {
   verdict: string | null;
 };
 
+type Role = "claimant" | "respondent";
+
+type SealedDraft = {
+  bond: string;
+  bondCt: `0x${string}`;
+  blobSize: number;
+  caseId: string;
+  caseKey: `0x${string}`;
+  commitment: `0x${string}`;
+  downloadUrl: string;
+  fileName: string;
+  keyCt: `0x${string}`;
+  role: Role;
+};
+
+type BasePublishState = {
+  fundBondTx: string;
+  sealKeyTx: string;
+};
+
 declare global {
   interface Window {
     ethereum?: {
-      request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+      request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown>;
     };
   }
 }
@@ -63,6 +86,25 @@ function safeJson(raw: string | null) {
   }
 }
 
+function describeChain(chainId: number) {
+  if (chainId === BASE_SEPOLIA_CHAIN_ID) return "Base Sepolia";
+  if (chainId === GENLAYER_CHAIN_ID) return "GenLayer Studio";
+  return `Wrong chain (${chainId})`;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function readFileAsText(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("File read failed"));
+    reader.readAsText(file);
+  });
+}
+
 export default function LiveConsole() {
   const baseProvider = useMemo(() => new JsonRpcProvider(BASE_SEPOLIA_RPC), []);
   const tribunalClient = useMemo(
@@ -70,26 +112,48 @@ export default function LiveConsole() {
       createClient({
         chain: localnet,
         endpoint: GENLAYER_RPC_URL,
-        // Dummy account keeps the SDK on its HTTP transport path for read-only calls.
         account: createAccount("0x1111111111111111111111111111111111111111111111111111111111111111"),
       }),
     [],
   );
+
   const [wallet, setWallet] = useState<WalletState | null>(null);
   const [network, setNetwork] = useState<NetworkSnapshot>({ totalCases: null, relayer: "", worker: "" });
   const [nextCaseId, setNextCaseId] = useState("");
   const [respondent, setRespondent] = useState("");
   const [lookupCaseId, setLookupCaseId] = useState(DEFAULT_LOOKUP_CASE);
   const [lookup, setLookup] = useState<LookupState | null>(null);
+
+  const [sealCaseId, setSealCaseId] = useState("");
+  const [sealRole, setSealRole] = useState<Role>("claimant");
+  const [bondAmount, setBondAmount] = useState("1000");
+  const [evidenceText, setEvidenceText] = useState("");
+  const [evidenceFileName, setEvidenceFileName] = useState("");
+  const [evidenceUri, setEvidenceUri] = useState("");
+  const [sealedDraft, setSealedDraft] = useState<SealedDraft | null>(null);
+  const [genPublishTx, setGenPublishTx] = useState("");
+  const [basePublish, setBasePublish] = useState<BasePublishState | null>(null);
+  const [readyHash, setReadyHash] = useState("");
+
   const [walletError, setWalletError] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [lookupError, setLookupError] = useState("");
+  const [sealError, setSealError] = useState("");
+  const [genPublishError, setGenPublishError] = useState("");
+  const [basePublishError, setBasePublishError] = useState("");
+  const [readyError, setReadyError] = useState("");
   const [submitHash, setSubmitHash] = useState("");
-  const [busy, setBusy] = useState<"" | "connect" | "submit" | "lookup">("");
+  const [busy, setBusy] = useState<"" | "connect" | "submit" | "lookup" | "seal" | "publishGen" | "publishBase" | "ready">("");
 
   useEffect(() => {
     void refreshNetwork();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (sealedDraft?.downloadUrl) URL.revokeObjectURL(sealedDraft.downloadUrl);
+    };
+  }, [sealedDraft?.downloadUrl]);
 
   async function refreshNetwork() {
     const escrow = getEscrowContract(baseProvider);
@@ -102,6 +166,7 @@ export default function LiveConsole() {
     const totalCases = Number(totalCasesRaw);
     setNetwork({ relayer, worker, totalCases });
     setNextCaseId((current) => current || `AQ-${totalCases}`);
+    setSealCaseId((current) => current || `AQ-${totalCases}`);
   }
 
   async function connectWallet() {
@@ -115,11 +180,11 @@ export default function LiveConsole() {
 
     try {
       const browserProvider = new BrowserProvider(injectedEthereum()!);
-      const accounts = await browserProvider.send("eth_requestAccounts", []);
+      const accounts = (await browserProvider.send("eth_requestAccounts", [])) as string[];
       const networkInfo = await browserProvider.getNetwork();
-      setWallet({ address: accounts[0], chainId: Number(networkInfo.chainId) });
+      setWallet({ address: accounts[0] as `0x${string}`, chainId: Number(networkInfo.chainId) });
     } catch (error) {
-      setWalletError(error instanceof Error ? error.message : String(error));
+      setWalletError(errorMessage(error));
     } finally {
       setBusy("");
     }
@@ -127,6 +192,7 @@ export default function LiveConsole() {
 
   async function switchToBaseSepolia() {
     if (!injectedEthereum()) return;
+
     try {
       await injectedEthereum()!.request({
         method: "wallet_switchEthereumChain",
@@ -134,7 +200,26 @@ export default function LiveConsole() {
       });
       setWallet((current) => current ? { ...current, chainId: BASE_SEPOLIA_CHAIN_ID } : current);
     } catch (error) {
-      setWalletError(error instanceof Error ? error.message : String(error));
+      setWalletError(errorMessage(error));
+    }
+  }
+
+  async function switchToGenLayer() {
+    if (!wallet) {
+      setWalletError("Connect a wallet first.");
+      return;
+    }
+
+    try {
+      const client = createClient({
+        chain: localnet,
+        endpoint: GENLAYER_RPC_URL,
+        account: wallet.address,
+      });
+      await client.connect("localnet", "npm");
+      setWallet((current) => current ? { ...current, chainId: GENLAYER_CHAIN_ID } : current);
+    } catch (error) {
+      setWalletError(errorMessage(error));
     }
   }
 
@@ -169,12 +254,216 @@ export default function LiveConsole() {
 
       const tx = await escrow.openCase(caseKey, respondent.trim(), caseId);
       await tx.wait();
+
       setSubmitHash(tx.hash);
+      setSealCaseId(caseId);
       setLookupCaseId(caseId);
       await refreshCase(caseId);
       await refreshNetwork();
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : String(error));
+      setSubmitError(errorMessage(error));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function handleEvidenceFile(file: File | null) {
+    if (!file) return;
+
+    try {
+      const text = await readFileAsText(file);
+      setEvidenceText(text);
+      setEvidenceFileName(file.name);
+    } catch (error) {
+      setSealError(errorMessage(error));
+    }
+  }
+
+  async function sealEvidenceInBrowser() {
+    if (!wallet) {
+      setSealError("Connect a wallet first. The wallet address is part of the Inco encryption context.");
+      return;
+    }
+    if (!sealCaseId.trim()) {
+      setSealError("Case ID is required.");
+      return;
+    }
+    if (!evidenceText.trim()) {
+      setSealError("Paste evidence text or load a file first.");
+      return;
+    }
+
+    let bond: bigint;
+    try {
+      bond = BigInt(bondAmount.trim());
+    } catch {
+      setSealError("Bond amount must be an integer.");
+      return;
+    }
+
+    setBusy("seal");
+    setSealError("");
+    setGenPublishError("");
+    setBasePublishError("");
+    setReadyError("");
+    setGenPublishTx("");
+    setBasePublish(null);
+    setReadyHash("");
+
+    try {
+      const [{ Lightning }, { handleTypes }, { bytesToHex, seal }] = await Promise.all([
+        import("@inco/js/lite"),
+        import("@inco/js"),
+        import("../lib/evidenceCrypto"),
+      ]);
+      const sealed = seal(evidenceText);
+      const lightning = await Lightning.baseSepoliaTestnet();
+      const keyCt = await lightning.encrypt(BigInt(`0x${bytesToHex(sealed.symKey)}`), {
+        accountAddress: wallet.address,
+        dappAddress: ESCROW_ADDRESS,
+        handleType: handleTypes.euint256,
+      });
+      const bondCt = await lightning.encrypt(bond, {
+        accountAddress: wallet.address,
+        dappAddress: ESCROW_ADDRESS,
+        handleType: handleTypes.euint256,
+      });
+      const blobPayload = new Uint8Array(sealed.blob.length);
+      blobPayload.set(sealed.blob);
+      const downloadUrl = URL.createObjectURL(new Blob([blobPayload], { type: "application/octet-stream" }));
+
+      setSealedDraft((current) => {
+        if (current?.downloadUrl) URL.revokeObjectURL(current.downloadUrl);
+        return {
+          bond: bond.toString(),
+          bondCt,
+          blobSize: sealed.blob.length,
+          caseId: sealCaseId.trim(),
+          caseKey: keccakId(sealCaseId.trim()) as `0x${string}`,
+          commitment: sealed.commitment,
+          downloadUrl,
+          fileName: `${sealCaseId.trim()}-${sealRole}.bin`,
+          keyCt,
+          role: sealRole,
+        };
+      });
+      setLookupCaseId(sealCaseId.trim());
+    } catch (error) {
+      setSealError(errorMessage(error));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function publishGenLayerSeal() {
+    if (!wallet) {
+      setGenPublishError("Connect a wallet first.");
+      return;
+    }
+    if (!sealedDraft) {
+      setGenPublishError("Seal evidence in the browser first.");
+      return;
+    }
+    if (!evidenceUri.trim()) {
+      setGenPublishError("Paste a persistent encrypted blob URI first.");
+      return;
+    }
+
+    setBusy("publishGen");
+    setGenPublishError("");
+    setGenPublishTx("");
+
+    try {
+      const client = createClient({
+        chain: localnet,
+        endpoint: GENLAYER_RPC_URL,
+        account: wallet.address,
+      });
+      await client.initializeConsensusSmartContract();
+      await client.connect("localnet", "npm");
+      const txHash = await client.writeContract({
+        address: TRIBUNAL_ADDRESS,
+        functionName: "seal_evidence",
+        args: [sealedDraft.caseId, sealedDraft.commitment, evidenceUri.trim()],
+        value: 0n,
+      });
+      await client.waitForTransactionReceipt({ hash: txHash, status: TransactionStatus.ACCEPTED });
+      setGenPublishTx(txHash);
+      setWallet((current) => current ? { ...current, chainId: GENLAYER_CHAIN_ID } : current);
+      await refreshCase(sealedDraft.caseId);
+    } catch (error) {
+      setGenPublishError(errorMessage(error));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function publishBaseSeal() {
+    if (!wallet) {
+      setBasePublishError("Connect a wallet first.");
+      return;
+    }
+    if (wallet.chainId !== BASE_SEPOLIA_CHAIN_ID) {
+      setBasePublishError("Switch the connected wallet to Base Sepolia first.");
+      return;
+    }
+    if (!sealedDraft) {
+      setBasePublishError("Seal evidence in the browser first.");
+      return;
+    }
+
+    setBusy("publishBase");
+    setBasePublishError("");
+    setBasePublish(null);
+
+    try {
+      const browserProvider = new BrowserProvider(injectedEthereum()!);
+      const signer = await browserProvider.getSigner();
+      const escrow = getEscrowContract(signer);
+
+      const fundBondTx = await escrow.fundBond(sealedDraft.caseKey, sealedDraft.bondCt, { value: INCO_OP_VALUE });
+      await fundBondTx.wait();
+      const sealKeyTx = await escrow.sealEvidenceKey(sealedDraft.caseKey, sealedDraft.keyCt, { value: INCO_OP_VALUE });
+      await sealKeyTx.wait();
+
+      setBasePublish({ fundBondTx: fundBondTx.hash, sealKeyTx: sealKeyTx.hash });
+      await refreshCase(sealedDraft.caseId);
+    } catch (error) {
+      setBasePublishError(errorMessage(error));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function markCaseReady() {
+    if (!wallet) {
+      setReadyError("Connect a wallet first.");
+      return;
+    }
+    if (wallet.chainId !== BASE_SEPOLIA_CHAIN_ID) {
+      setReadyError("Switch the connected wallet to Base Sepolia first.");
+      return;
+    }
+    if (!sealedDraft) {
+      setReadyError("Seal evidence in the browser first.");
+      return;
+    }
+
+    setBusy("ready");
+    setReadyError("");
+    setReadyHash("");
+
+    try {
+      const browserProvider = new BrowserProvider(injectedEthereum()!);
+      const signer = await browserProvider.getSigner();
+      const escrow = getEscrowContract(signer);
+      const tx = await escrow.markReady(sealedDraft.caseKey, { value: INCO_OP_VALUE });
+      await tx.wait();
+      setReadyHash(tx.hash);
+      await refreshCase(sealedDraft.caseId);
+      await refreshNetwork();
+    } catch (error) {
+      setReadyError(errorMessage(error));
     } finally {
       setBusy("");
     }
@@ -214,7 +503,7 @@ export default function LiveConsole() {
       });
     } catch (error) {
       setLookup(null);
-      setLookupError(error instanceof Error ? error.message : String(error));
+      setLookupError(errorMessage(error));
     } finally {
       setBusy("");
     }
@@ -229,7 +518,7 @@ export default function LiveConsole() {
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <div className="font-sans text-[11px] font-800 tracking-[0.12em] uppercase text-oxblood">Live Console</div>
-            <div className="font-display text-[28px] leading-tight mt-1">Wallet, submit, verdict, and live chain state.</div>
+            <div className="font-display text-[28px] leading-tight mt-1">Wallet, seal, submit, verdict, and live chain state.</div>
           </div>
           <button
             type="button"
@@ -297,9 +586,22 @@ export default function LiveConsole() {
                     Switch to Base Sepolia
                   </button>
                 )}
+
+                {wallet && wallet.chainId !== GENLAYER_CHAIN_ID && (
+                  <button
+                    type="button"
+                    onClick={() => { void switchToGenLayer(); }}
+                    className="border border-ink px-4 py-2 font-sans text-[12px] uppercase tracking-[0.08em] hover:bg-ink hover:text-white transition-colors"
+                  >
+                    Switch to GenLayer
+                  </button>
+                )}
               </div>
               <div className="mt-2 font-sans text-[11px] text-gray-450">
-                Chain status: {wallet ? `${wallet.chainId === BASE_SEPOLIA_CHAIN_ID ? "Base Sepolia" : `Wrong chain (${wallet.chainId})`}` : "No wallet connected"}
+                Chain status: {wallet ? describeChain(wallet.chainId) : "No wallet connected"}
+              </div>
+              <div className="mt-1 font-sans text-[11px] text-gray-450">
+                GenLayer writes currently expect MetaMask with the GenLayer snap. Base flows work with ordinary injected wallets.
               </div>
               {walletError && <div className="mt-2 font-sans text-[11px] text-oxblood">{walletError}</div>}
             </div>
@@ -335,7 +637,7 @@ export default function LiveConsole() {
                   {busy === "submit" ? "Submitting..." : "Open Escrow Case"}
                 </button>
                 <div className="font-sans text-[11px] text-gray-450">
-                  Case key will be derived live as <span className="font-mono">keccak256(caseId)</span>.
+                  Case key is derived live as <span className="font-mono">keccak256(caseId)</span>.
                 </div>
               </div>
               {submitHash && (
@@ -345,6 +647,199 @@ export default function LiveConsole() {
                 </div>
               )}
               {submitError && <div className="mt-2 font-sans text-[11px] text-oxblood">{submitError}</div>}
+            </div>
+
+            <div className="border border-ink bg-white/70 p-4">
+              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">Confidential Seal Flow</div>
+              <div className="mt-2 font-sans text-[11px] text-gray-450">
+                The browser seals plaintext locally, derives a commitment, encrypts the symmetric key and bond for Inco, then lets you publish to GenLayer and Base as separate real transactions.
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                <label className="block">
+                  <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450 mb-1">Case ID</div>
+                  <input
+                    value={sealCaseId}
+                    onChange={(event) => setSealCaseId(event.target.value)}
+                    className="w-full border border-hair bg-white px-3 py-2 font-mono text-[12px] outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450 mb-1">Role</div>
+                  <select
+                    value={sealRole}
+                    onChange={(event) => setSealRole(event.target.value as Role)}
+                    className="w-full border border-hair bg-white px-3 py-2 font-sans text-[12px] outline-none"
+                  >
+                    <option value="claimant">Claimant</option>
+                    <option value="respondent">Respondent</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450 mb-1">Confidential Bond</div>
+                  <input
+                    value={bondAmount}
+                    onChange={(event) => setBondAmount(event.target.value)}
+                    className="w-full border border-hair bg-white px-3 py-2 font-mono text-[12px] outline-none"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3">
+                <label className="block">
+                  <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450 mb-1">Evidence Text</div>
+                  <textarea
+                    value={evidenceText}
+                    onChange={(event) => setEvidenceText(event.target.value)}
+                    placeholder='{"expected_delivery_utc":"2026-07-20T08:00:00Z","observed_delivery_utc":"2026-07-20T11:10:00Z","missing_rows":14}'
+                    rows={7}
+                    className="w-full border border-hair bg-white px-3 py-2 font-mono text-[12px] outline-none resize-y"
+                  />
+                </label>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <label className="border border-ink px-3 py-2 font-sans text-[11px] uppercase tracking-[0.08em] cursor-pointer hover:bg-ink hover:text-white transition-colors">
+                    Load File
+                    <input
+                      type="file"
+                      accept=".txt,.json,.md,.csv"
+                      className="hidden"
+                      onChange={(event) => { void handleEvidenceFile(event.target.files?.[0] ?? null); }}
+                    />
+                  </label>
+                  <div className="font-sans text-[11px] text-gray-450">
+                    {evidenceFileName ? `Loaded: ${evidenceFileName}` : "Plaintext never leaves the browser at seal time."}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <label className="block">
+                  <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450 mb-1">Encrypted Blob URI</div>
+                  <input
+                    value={evidenceUri}
+                    onChange={(event) => setEvidenceUri(event.target.value)}
+                    placeholder="ipfs://... or https://..."
+                    className="w-full border border-hair bg-white px-3 py-2 font-mono text-[12px] outline-none"
+                  />
+                </label>
+                <div className="mt-1 font-sans text-[11px] text-gray-450">
+                  The downloaded ciphertext blob must be uploaded to persistent storage first. Then this URI is what gets sealed into the GenLayer record.
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => { void sealEvidenceInBrowser(); }}
+                  disabled={busy === "seal"}
+                  className="bg-ink text-white px-4 py-2 font-sans text-[12px] uppercase tracking-[0.08em] hover:bg-oxblood transition-colors disabled:opacity-60"
+                >
+                  {busy === "seal" ? "Sealing..." : "Seal in Browser"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void switchToGenLayer(); }}
+                  className="border border-ink px-4 py-2 font-sans text-[12px] uppercase tracking-[0.08em] hover:bg-ink hover:text-white transition-colors"
+                >
+                  Switch to GenLayer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void publishGenLayerSeal(); }}
+                  disabled={busy === "publishGen"}
+                  className="border border-ink px-4 py-2 font-sans text-[12px] uppercase tracking-[0.08em] hover:bg-ink hover:text-white transition-colors disabled:opacity-60"
+                >
+                  {busy === "publishGen" ? "Publishing..." : "Publish Seal to GenLayer"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void switchToBaseSepolia(); }}
+                  className="border border-ink px-4 py-2 font-sans text-[12px] uppercase tracking-[0.08em] hover:bg-ink hover:text-white transition-colors"
+                >
+                  Switch to Base
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void publishBaseSeal(); }}
+                  disabled={busy === "publishBase"}
+                  className="border border-ink px-4 py-2 font-sans text-[12px] uppercase tracking-[0.08em] hover:bg-ink hover:text-white transition-colors disabled:opacity-60"
+                >
+                  {busy === "publishBase" ? "Publishing..." : "Publish Bond + Key to Base"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void markCaseReady(); }}
+                  disabled={busy === "ready"}
+                  className="border border-ink px-4 py-2 font-sans text-[12px] uppercase tracking-[0.08em] hover:bg-ink hover:text-white transition-colors disabled:opacity-60"
+                >
+                  {busy === "ready" ? "Marking..." : "Mark Ready"}
+                </button>
+              </div>
+
+              {sealedDraft && (
+                <div className="space-y-3 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="border border-hair p-3">
+                      <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Commitment</div>
+                      <div className="font-mono text-[11px] mt-1 break-all">{sealedDraft.commitment}</div>
+                    </div>
+                    <div className="border border-hair p-3">
+                      <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Case Key</div>
+                      <div className="font-mono text-[11px] mt-1 break-all">{sealedDraft.caseKey}</div>
+                    </div>
+                    <div className="border border-hair p-3">
+                      <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Blob</div>
+                      <div className="font-sans text-[11px] mt-1">{sealedDraft.blobSize} bytes</div>
+                      <a
+                        href={sealedDraft.downloadUrl}
+                        download={sealedDraft.fileName}
+                        className="inline-block mt-2 font-sans text-[11px] uppercase tracking-[0.08em] underline underline-offset-2"
+                      >
+                        Download ciphertext blob
+                      </a>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="border border-hair p-3">
+                      <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Encrypted Bond</div>
+                      <div className="font-mono text-[11px] mt-1 break-all">{sealedDraft.bondCt}</div>
+                    </div>
+                    <div className="border border-hair p-3">
+                      <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Encrypted Evidence Key</div>
+                      <div className="font-mono text-[11px] mt-1 break-all">{sealedDraft.keyCt}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {genPublishTx && (
+                <div className="mt-3 border border-hair p-3">
+                  <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">GenLayer Seal Transaction</div>
+                  <div className="font-mono text-[11px] mt-1 break-all">{genPublishTx}</div>
+                </div>
+              )}
+
+              {basePublish && (
+                <div className="mt-3 border border-hair p-3">
+                  <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Base Transactions</div>
+                  <div className="mt-2 font-sans text-[11px] text-gray-450">fundBond</div>
+                  <div className="font-mono text-[11px] break-all">{basePublish.fundBondTx}</div>
+                  <div className="mt-2 font-sans text-[11px] text-gray-450">sealEvidenceKey</div>
+                  <div className="font-mono text-[11px] break-all">{basePublish.sealKeyTx}</div>
+                </div>
+              )}
+
+              {readyHash && (
+                <div className="mt-3 border border-hair p-3">
+                  <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">markReady Transaction</div>
+                  <div className="font-mono text-[11px] mt-1 break-all">{readyHash}</div>
+                </div>
+              )}
+
+              {sealError && <div className="mt-2 font-sans text-[11px] text-oxblood">{sealError}</div>}
+              {genPublishError && <div className="mt-2 font-sans text-[11px] text-oxblood">{genPublishError}</div>}
+              {basePublishError && <div className="mt-2 font-sans text-[11px] text-oxblood">{basePublishError}</div>}
+              {readyError && <div className="mt-2 font-sans text-[11px] text-oxblood">{readyError}</div>}
             </div>
           </div>
 
@@ -356,7 +851,7 @@ export default function LiveConsole() {
                   value={lookupCaseId}
                   onChange={(event) => setLookupCaseId(event.target.value)}
                   className="flex-1 border border-hair bg-white px-3 py-2 font-mono text-[12px] outline-none"
-                  placeholder="AQ-1"
+                  placeholder="AQ-0"
                 />
                 <button
                   type="button"
