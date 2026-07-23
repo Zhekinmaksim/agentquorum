@@ -147,6 +147,7 @@ export default function LiveConsole() {
 
   const [walletError, setWalletError] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [submitNotice, setSubmitNotice] = useState("");
   const [lookupError, setLookupError] = useState("");
   const [lookupNotice, setLookupNotice] = useState("");
   const [sealError, setSealError] = useState("");
@@ -181,6 +182,15 @@ export default function LiveConsole() {
     setNetwork({ relayer, worker, totalCases });
     setNextCaseId((current) => current || `AQ-${totalCases}`);
     setSealCaseId((current) => current || `AQ-${totalCases}`);
+  }
+
+  async function expectedCaseIdFromGenLayer() {
+    const totalCasesRaw = await tribunalClient.readContract({
+      address: TRIBUNAL_ADDRESS,
+      functionName: "total_cases",
+      args: [],
+    });
+    return `AQ-${Number(totalCasesRaw)}`;
   }
 
   async function connectWallet() {
@@ -265,11 +275,17 @@ export default function LiveConsole() {
 
     setBusy("submit");
     setSubmitError("");
+    setSubmitNotice("");
     setSubmitGenHash("");
     setSubmitHash("");
 
     try {
       const caseId = nextCaseId.trim();
+      const expectedCaseId = await expectedCaseIdFromGenLayer();
+      if (caseId !== expectedCaseId) {
+        setNextCaseId(expectedCaseId);
+        throw new Error(`GenLayer currently expects ${expectedCaseId}. Case numbering is owned by GenLayer, so retry with that ID.`);
+      }
       const caseKey = keccakId(caseId);
       const client = createClient({
         chain: localnet,
@@ -285,6 +301,7 @@ export default function LiveConsole() {
         value: 0n,
       });
       await client.waitForTransactionReceipt({ hash: genTxHash, status: TransactionStatus.ACCEPTED });
+      await tribunalClient.readContract({ address: TRIBUNAL_ADDRESS, functionName: "get_case", args: [caseId] });
       setSubmitGenHash(genTxHash);
 
       const browserProvider = new BrowserProvider(injectedEthereum()!);
@@ -294,6 +311,7 @@ export default function LiveConsole() {
       await tx.wait();
 
       setSubmitHash(tx.hash);
+      setSubmitNotice("GenLayer cause opened first, then mirrored to Base with the same AQ-n and caseKey.");
       setSealCaseId(caseId);
       setLookupCaseId(caseId);
       await refreshCase(caseId);
@@ -569,7 +587,9 @@ export default function LiveConsole() {
         tribunalStatus,
         verdict: verdictRaw,
       });
-      if (tribunalCaseResult.status === "rejected") {
+      if (tribunalCaseRaw && !escrowCaseId) {
+        setLookupNotice("GenLayer case exists, but the Base escrow mirror is not visible yet.");
+      } else if (tribunalCaseResult.status === "rejected") {
         setLookupNotice(tribunalStatus);
       }
     } catch (error) {
@@ -736,7 +756,7 @@ export default function LiveConsole() {
                   {busy === "submit" ? "Submitting..." : "Open Cause on Both Chains"}
                 </button>
                 <div className="font-sans text-[11px] text-gray-450">
-                  Registers the same <span className="font-mono">AQ-n</span> and <span className="font-mono">keccak256(caseId)</span> on GenLayer and Base.
+                  GenLayer is the source of truth for <span className="font-mono">AQ-n</span>. Base mirrors the same <span className="font-mono">keccak256(caseId)</span>.
                 </div>
               </div>
               {samePartyAsConnectedWallet && (
@@ -756,6 +776,7 @@ export default function LiveConsole() {
                   <div className="font-mono text-[11px] mt-1 break-all">{submitHash}</div>
                 </div>
               )}
+              {submitNotice && <div className="mt-2 font-sans text-[11px] text-gray-450">{submitNotice}</div>}
               {submitError && <div className="mt-2 font-sans text-[11px] text-oxblood">{submitError}</div>}
             </div>
 
