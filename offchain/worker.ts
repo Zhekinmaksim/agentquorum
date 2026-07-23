@@ -23,8 +23,7 @@
  * smuggle in altered evidence.
  */
 
-import { createClient } from "genlayer-js";          // pin the version, not @latest
-import { localnet } from "genlayer-js/chains";        // Endpoint is overridden from env.
+import { createClient } from "genlayer-js";
 import { JsonRpcProvider, Contract, Wallet, parseEther } from "ethers";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -34,6 +33,7 @@ import { unseal, commitmentOf } from "./crypto.js";
 import { decryptHandlesWithFallback } from "./inco-decrypt.js";
 import { Lightning } from "./inco.js";
 import { fetchBlob } from "./storage.js";
+import { getGenLayerChain } from "./genlayer-network.js";
 import escrowAbi from "./abi/ConfidentialEscrow.json" assert { type: "json" };
 
 type GlAddress = `0x${string}` & { length: 42 };
@@ -44,7 +44,7 @@ const WORKER_PRIVATE_KEY = process.env.WORKER_PRIVATE_KEY as `0x${string}`;
 const BASE_SEPOLIA_RPC = process.env.BASE_SEPOLIA_RPC!;
 const INCO_OP_VALUE = parseEther("0.0001");
 
-const gl = createClient({ chain: localnet, endpoint: process.env.GENLAYER_RPC_URL });
+const gl = createClient({ chain: getGenLayerChain() });
 const incoPromise = Lightning.baseSepoliaTestnet();
 
 const base = new JsonRpcProvider(BASE_SEPOLIA_RPC);

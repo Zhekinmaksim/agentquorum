@@ -89,14 +89,14 @@ npm run build:contracts         # forge build, produces the ABI artifact
 npm run abi                     # -> offchain/abi/ConfidentialEscrow.json
 
 npm run deploy:escrow           # Base Sepolia, copy ESCROW_ADDRESS into .env
-npm run deploy:tribunal         # GenLayer Studio, copy TRIBUNAL_ADDRESS into .env
+npm run deploy:tribunal         # GenLayer Bradbury, copy TRIBUNAL_ADDRESS into .env
 
 npm run worker                  # run the discovery worker
 # parties seal evidence:
 npm run seal -- --case AQ-0007 --role claimant --file ./evidence.json --bond 500
 ```
 
-Develop against GenLayer Studio first, then Bradbury / Asimov.
+Develop locally or on Studio first, then promote to Bradbury for production-like validation.
 
 ## Status
 

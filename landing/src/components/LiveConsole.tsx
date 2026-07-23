@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { BrowserProvider, Contract, JsonRpcProvider, getAddress, id as keccakId, parseEther } from "ethers";
-import { createAccount, createClient } from "genlayer-js";
-import { localnet } from "genlayer-js/chains";
+import { createClient } from "genlayer-js";
 import { TransactionStatus } from "genlayer-js/types";
 import { escrowAbi } from "../lib/escrowAbi";
+import { GENLAYER_CHAIN, GENLAYER_NETWORK_NAME } from "../lib/genlayerNetwork";
 
+const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 const BASE_SEPOLIA_RPC = "https://sepolia.base.org";
 const BASE_SEPOLIA_CHAIN_ID = 84532;
 const BASE_SEPOLIA_CHAIN_ID_HEX = "0x14A34";
-const GENLAYER_RPC_URL = "https://studio.genlayer.com/api";
-const GENLAYER_CHAIN_ID = 61999;
-const ESCROW_ADDRESS = "0x0a2b41f8814f310A09e0Fbe256B55464d408666B";
-const TRIBUNAL_ADDRESS = "0x2A9358126C10dB2c64d05A66ae372fD582A93486" as `0x${string}` & { length: 42 };
+const GENLAYER_CHAIN_ID = GENLAYER_CHAIN.id;
+const ESCROW_ADDRESS = env.VITE_ESCROW_ADDRESS ?? "0x0a2b41f8814f310A09e0Fbe256B55464d408666B";
+const TRIBUNAL_ADDRESS = (env.VITE_TRIBUNAL_ADDRESS ??
+  "0x3d9d27C990f9adCa2ecd5Dc2DC3B3EC910999CAc") as `0x${string}` & { length: 42 };
 const INCO_OP_VALUE = parseEther("0.0001");
 
 const PHASE_LABELS = ["None", "Open", "Ready", "Settled", "Refunded"] as const;
@@ -97,7 +98,7 @@ function safeJson(raw: string | null) {
 
 function describeChain(chainId: number) {
   if (chainId === BASE_SEPOLIA_CHAIN_ID) return "Base Sepolia";
-  if (chainId === GENLAYER_CHAIN_ID) return "GenLayer Studio";
+  if (chainId === GENLAYER_CHAIN_ID) return GENLAYER_CHAIN.name;
   return `Wrong chain (${chainId})`;
 }
 
@@ -116,15 +117,7 @@ async function readFileAsText(file: File) {
 
 export default function LiveConsole() {
   const baseProvider = useMemo(() => new JsonRpcProvider(BASE_SEPOLIA_RPC), []);
-  const tribunalClient = useMemo(
-    () =>
-      createClient({
-        chain: localnet,
-        endpoint: GENLAYER_RPC_URL,
-        account: createAccount("0x1111111111111111111111111111111111111111111111111111111111111111"),
-      }),
-    [],
-  );
+  const tribunalClient = useMemo(() => createClient({ chain: GENLAYER_CHAIN }), []);
 
   const [wallet, setWallet] = useState<WalletState | null>(null);
   const [network, setNetwork] = useState<NetworkSnapshot>({ totalCases: null, relayer: "", worker: "" });
@@ -206,7 +199,7 @@ export default function LiveConsole() {
       const browserProvider = new BrowserProvider(injectedEthereum()!);
       const accounts = (await browserProvider.send("eth_requestAccounts", [])) as string[];
       const networkInfo = await browserProvider.getNetwork();
-      setWallet({ address: accounts[0] as `0x${string}`, chainId: Number(networkInfo.chainId) });
+      setWallet({ address: getAddress(accounts[0]) as `0x${string}`, chainId: Number(networkInfo.chainId) });
     } catch (error) {
       setWalletError(errorMessage(error));
     } finally {
@@ -214,34 +207,48 @@ export default function LiveConsole() {
     }
   }
 
-  async function switchToBaseSepolia() {
-    if (!injectedEthereum()) return;
+  async function syncWalletFromProvider(expectedAddress?: `0x${string}`) {
+    const browserProvider = new BrowserProvider(injectedEthereum()!);
+    const accounts = (await browserProvider.send("eth_accounts", [])) as string[];
+    const networkInfo = await browserProvider.getNetwork();
+    const fallback = wallet?.address ?? expectedAddress;
+    const address = accounts[0] ? getAddress(accounts[0]) : fallback;
+    if (!address) throw new Error("No connected wallet address found after network switch.");
+    setWallet({ address: address as `0x${string}`, chainId: Number(networkInfo.chainId) });
+  }
 
+  async function ensureBaseSepoliaChain() {
+    if (!injectedEthereum()) throw new Error("No injected wallet found.");
+    await injectedEthereum()!.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: BASE_SEPOLIA_CHAIN_ID_HEX }],
+    });
+    await syncWalletFromProvider();
+  }
+
+  async function switchToBaseSepolia() {
     try {
-      await injectedEthereum()!.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: BASE_SEPOLIA_CHAIN_ID_HEX }],
-      });
-      setWallet((current) => current ? { ...current, chainId: BASE_SEPOLIA_CHAIN_ID } : current);
+      await ensureBaseSepoliaChain();
     } catch (error) {
       setWalletError(errorMessage(error));
     }
   }
 
-  async function switchToGenLayer() {
-    if (!wallet) {
-      setWalletError("Connect a wallet first.");
-      return;
-    }
+  async function ensureGenLayerChain() {
+    if (!wallet) throw new Error("Connect a wallet first.");
+    if (!injectedEthereum()) throw new Error("No injected wallet found.");
+    const client = createClient({
+      chain: GENLAYER_CHAIN,
+      account: wallet.address,
+      provider: injectedEthereum()!,
+    });
+    await client.connect(GENLAYER_NETWORK_NAME, "npm");
+    await syncWalletFromProvider(wallet.address);
+  }
 
+  async function switchToGenLayer() {
     try {
-      const client = createClient({
-        chain: localnet,
-        endpoint: GENLAYER_RPC_URL,
-        account: wallet.address,
-      });
-      await client.connect("localnet", "npm");
-      setWallet((current) => current ? { ...current, chainId: GENLAYER_CHAIN_ID } : current);
+      await ensureGenLayerChain();
     } catch (error) {
       setWalletError(errorMessage(error));
     }
@@ -268,11 +275,6 @@ export default function LiveConsole() {
       setSubmitError("Respondent must be a different wallet than the connected claimant.");
       return;
     }
-    if (wallet.chainId !== BASE_SEPOLIA_CHAIN_ID) {
-      setSubmitError("Switch the connected wallet to Base Sepolia first before opening the mirrored Base record.");
-      return;
-    }
-
     setBusy("submit");
     setSubmitError("");
     setSubmitNotice("");
@@ -287,13 +289,12 @@ export default function LiveConsole() {
         throw new Error(`GenLayer currently expects ${expectedCaseId}. Case numbering is owned by GenLayer, so retry with that ID.`);
       }
       const caseKey = keccakId(caseId);
+      await ensureGenLayerChain();
       const client = createClient({
-        chain: localnet,
-        endpoint: GENLAYER_RPC_URL,
+        chain: GENLAYER_CHAIN,
         account: wallet.address,
+        provider: injectedEthereum()!,
       });
-      await client.initializeConsensusSmartContract();
-      await client.connect("localnet", "npm");
       const genTxHash = await client.writeContract({
         address: TRIBUNAL_ADDRESS,
         functionName: "open_case",
@@ -304,6 +305,7 @@ export default function LiveConsole() {
       await tribunalClient.readContract({ address: TRIBUNAL_ADDRESS, functionName: "get_case", args: [caseId] });
       setSubmitGenHash(genTxHash);
 
+      await ensureBaseSepoliaChain();
       const browserProvider = new BrowserProvider(injectedEthereum()!);
       const signer = await browserProvider.getSigner();
       const escrow = getEscrowContract(signer);
@@ -438,13 +440,12 @@ export default function LiveConsole() {
     setGenPublishTx("");
 
     try {
+      await ensureGenLayerChain();
       const client = createClient({
-        chain: localnet,
-        endpoint: GENLAYER_RPC_URL,
+        chain: GENLAYER_CHAIN,
         account: wallet.address,
+        provider: injectedEthereum()!,
       });
-      await client.initializeConsensusSmartContract();
-      await client.connect("localnet", "npm");
       try {
         await client.readContract({ address: TRIBUNAL_ADDRESS, functionName: "get_case", args: [sealedDraft.caseId] });
       } catch {
@@ -465,7 +466,7 @@ export default function LiveConsole() {
       });
       await client.waitForTransactionReceipt({ hash: txHash, status: TransactionStatus.ACCEPTED });
       setGenPublishTx(txHash);
-      setWallet((current) => current ? { ...current, chainId: GENLAYER_CHAIN_ID } : current);
+      await syncWalletFromProvider(wallet.address);
       await refreshCase(sealedDraft.caseId);
     } catch (error) {
       setGenPublishError(errorMessage(error));
@@ -479,10 +480,6 @@ export default function LiveConsole() {
       setBasePublishError("Connect a wallet first.");
       return;
     }
-    if (wallet.chainId !== BASE_SEPOLIA_CHAIN_ID) {
-      setBasePublishError("Switch the connected wallet to Base Sepolia first.");
-      return;
-    }
     if (!sealedDraft) {
       setBasePublishError("Seal evidence in the browser first.");
       return;
@@ -493,6 +490,7 @@ export default function LiveConsole() {
     setBasePublish(null);
 
     try {
+      await ensureBaseSepoliaChain();
       const browserProvider = new BrowserProvider(injectedEthereum()!);
       const signer = await browserProvider.getSigner();
       const escrow = getEscrowContract(signer);
@@ -516,10 +514,6 @@ export default function LiveConsole() {
       setReadyError("Connect a wallet first.");
       return;
     }
-    if (wallet.chainId !== BASE_SEPOLIA_CHAIN_ID) {
-      setReadyError("Switch the connected wallet to Base Sepolia first.");
-      return;
-    }
     if (!sealedDraft) {
       setReadyError("Seal evidence in the browser first.");
       return;
@@ -530,6 +524,7 @@ export default function LiveConsole() {
     setReadyHash("");
 
     try {
+      await ensureBaseSepoliaChain();
       const browserProvider = new BrowserProvider(injectedEthereum()!);
       const signer = await browserProvider.getSigner();
       const escrow = getEscrowContract(signer);
@@ -700,7 +695,7 @@ export default function LiveConsole() {
                     onClick={() => { void switchToGenLayer(); }}
                     className="border border-ink px-4 py-2 font-sans text-[12px] uppercase tracking-[0.08em] hover:bg-ink hover:text-white transition-colors"
                   >
-                    Switch to GenLayer
+                    Switch to {GENLAYER_CHAIN.name}
                   </button>
                 )}
               </div>
@@ -708,7 +703,7 @@ export default function LiveConsole() {
                 Chain status: {wallet ? describeChain(wallet.chainId) : "No wallet connected"}
               </div>
               <div className="mt-1 font-sans text-[11px] text-gray-450">
-                GenLayer writes currently expect MetaMask with the GenLayer snap. Base flows work with ordinary injected wallets.
+                GenLayer writes target {GENLAYER_CHAIN.name}. The site will prompt MetaMask to add or switch the network when a GenLayer action starts.
               </div>
               {walletError && <div className="mt-2 font-sans text-[11px] text-oxblood">{walletError}</div>}
             </div>

@@ -1,7 +1,7 @@
 import { createAccount, createClient, abi as genAbi } from "genlayer-js";
-import { localnet } from "genlayer-js/chains";
 import { TransactionStatus } from "genlayer-js/types";
 import { encodeFunctionData, zeroAddress } from "viem";
+import { getGenLayerChain } from "./genlayer-network.js";
 
 type GlAddress = `0x${string}` & { length: 42 };
 type GlHash = `0x${string}` & { length: 66 };
@@ -16,12 +16,16 @@ type SendRawArgs = {
 };
 
 const STATUS_ORDER: Record<string, number> = {
+  UNINITIALIZED: -1,
   PENDING: 0,
   PROPOSING: 1,
   COMMITTING: 2,
   REVEALING: 3,
   ACCEPTED: 4,
-  FINALIZED: 5,
+  READY_TO_FINALIZE: 5,
+  FINALIZED: 6,
+  APPEAL_COMMITTING: 7,
+  APPEAL_REVEALING: 8,
 };
 
 function makeCalldataObject(
@@ -57,13 +61,18 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForGenLayerStatus(hash: GlHash, target: TransactionStatus, timeoutMs = 180_000) {
+async function waitForGenLayerStatus(
+  client: ReturnType<typeof createGlClient>,
+  hash: GlHash,
+  target: TransactionStatus,
+  timeoutMs = 180_000,
+) {
   const started = Date.now();
   let lastStatus = "UNKNOWN";
 
   while (Date.now() - started < timeoutMs) {
-    const tx = await rpc("eth_getTransactionByHash", [hash]);
-    const status = String(tx?.status ?? "UNKNOWN");
+    const tx = await client.getTransaction({ hash }) as any;
+    const status = String(tx?.statusName ?? tx?.status ?? "UNKNOWN");
     lastStatus = status;
 
     if (status === TransactionStatus.CANCELED || status === TransactionStatus.UNDETERMINED) {
@@ -91,8 +100,7 @@ function parseHexBigInt(hex: string): bigint {
 export function createGlClient(privateKey?: `0x${string}`) {
   const account = privateKey ? createAccount(privateKey) : undefined;
   return createClient({
-    chain: localnet,
-    endpoint: process.env.GENLAYER_RPC_URL,
+    chain: getGenLayerChain(),
     ...(account ? { account } : {}),
   });
 }
@@ -148,7 +156,7 @@ export async function sendRawGenLayerTransaction({
   });
 
   const hash = (await rpc("eth_sendRawTransaction", [serialized])) as GlHash;
-  const receipt = await waitForGenLayerStatus(hash, waitForStatus);
+  const receipt = await waitForGenLayerStatus(client, hash, waitForStatus);
 
   return { client, hash, receipt };
 }

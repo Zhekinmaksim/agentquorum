@@ -15,14 +15,14 @@
  * the worker can resolve caseKey -> caseId via escrow.caseIdOf.
  *
  * Run: node --import tsx deploy/open-cause.ts --terms "..." --respondent 0x...
- * SDK calls are wired to genlayer-js@0.7.0 and should still be proven once on
- * a funded Studio/Base Sepolia flow.
+ * The configured GenLayer network owns AQ-n numbering. Base mirrors the same
+ * caseKey so both chains stay in lockstep.
  */
 
 import { createClient, createAccount } from "genlayer-js";
-import { localnet } from "genlayer-js/chains";
 import { JsonRpcProvider, Contract, Wallet, id as keccakId } from "ethers";
 import escrowAbi from "../offchain/abi/ConfidentialEscrow.json" assert { type: "json" };
+import { getGenLayerChain } from "../offchain/genlayer-network.js";
 
 type GlAddress = `0x${string}` & { length: 42 };
 
@@ -44,7 +44,7 @@ async function main() {
 
   // GenLayer side
   const account = createAccount(process.env.GENLAYER_PRIVATE_KEY as `0x${string}`);
-  const gl = createClient({ chain: localnet, endpoint: process.env.GENLAYER_RPC_URL, account });
+  const gl = createClient({ chain: getGenLayerChain(), account });
   await gl.initializeConsensusSmartContract();
 
   const nRaw = await gl.readContract({
