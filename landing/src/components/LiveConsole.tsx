@@ -34,6 +34,7 @@ type LookupState = {
   escrowPhase: string;
   escrowCaseId: string;
   tribunalCase: string | null;
+  tribunalStatus: string;
   verdict: string | null;
 };
 
@@ -128,6 +129,7 @@ export default function LiveConsole() {
   const [wallet, setWallet] = useState<WalletState | null>(null);
   const [network, setNetwork] = useState<NetworkSnapshot>({ totalCases: null, relayer: "", worker: "" });
   const [nextCaseId, setNextCaseId] = useState("");
+  const [caseTerms, setCaseTerms] = useState("Deliver index in 6h with complete rows and reproducible methodology.");
   const [respondent, setRespondent] = useState("");
   const [lookupCaseId, setLookupCaseId] = useState(DEFAULT_LOOKUP_CASE);
   const [lookup, setLookup] = useState<LookupState | null>(null);
@@ -146,10 +148,12 @@ export default function LiveConsole() {
   const [walletError, setWalletError] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [lookupError, setLookupError] = useState("");
+  const [lookupNotice, setLookupNotice] = useState("");
   const [sealError, setSealError] = useState("");
   const [genPublishError, setGenPublishError] = useState("");
   const [basePublishError, setBasePublishError] = useState("");
   const [readyError, setReadyError] = useState("");
+  const [submitGenHash, setSubmitGenHash] = useState("");
   const [submitHash, setSubmitHash] = useState("");
   const [busy, setBusy] = useState<"" | "connect" | "submit" | "lookup" | "seal" | "publishGen" | "publishBase" | "ready">("");
   const normalizedRespondent = normalizeAddress(respondent);
@@ -238,12 +242,12 @@ export default function LiveConsole() {
       setSubmitError("Connect a wallet first.");
       return;
     }
-    if (wallet.chainId !== BASE_SEPOLIA_CHAIN_ID) {
-      setSubmitError("Switch the connected wallet to Base Sepolia first.");
-      return;
-    }
     if (!nextCaseId.trim()) {
       setSubmitError("Case ID is required.");
+      return;
+    }
+    if (!caseTerms.trim()) {
+      setSubmitError("Case terms are required.");
       return;
     }
     if (!normalizedRespondent) {
@@ -254,18 +258,38 @@ export default function LiveConsole() {
       setSubmitError("Respondent must be a different wallet than the connected claimant.");
       return;
     }
+    if (wallet.chainId !== BASE_SEPOLIA_CHAIN_ID) {
+      setSubmitError("Switch the connected wallet to Base Sepolia first before opening the mirrored Base record.");
+      return;
+    }
 
     setBusy("submit");
     setSubmitError("");
+    setSubmitGenHash("");
     setSubmitHash("");
 
     try {
+      const caseId = nextCaseId.trim();
+      const caseKey = keccakId(caseId);
+      const client = createClient({
+        chain: localnet,
+        endpoint: GENLAYER_RPC_URL,
+        account: wallet.address,
+      });
+      await client.initializeConsensusSmartContract();
+      await client.connect("localnet", "npm");
+      const genTxHash = await client.writeContract({
+        address: TRIBUNAL_ADDRESS,
+        functionName: "open_case",
+        args: [caseTerms.trim(), caseKey, normalizedRespondent],
+        value: 0n,
+      });
+      await client.waitForTransactionReceipt({ hash: genTxHash, status: TransactionStatus.ACCEPTED });
+      setSubmitGenHash(genTxHash);
+
       const browserProvider = new BrowserProvider(injectedEthereum()!);
       const signer = await browserProvider.getSigner();
       const escrow = getEscrowContract(signer);
-      const caseId = nextCaseId.trim();
-      const caseKey = keccakId(caseId);
-
       const tx = await escrow.openCase(caseKey, normalizedRespondent, caseId);
       await tx.wait();
 
@@ -382,6 +406,14 @@ export default function LiveConsole() {
       setGenPublishError("Paste a persistent encrypted blob URI first.");
       return;
     }
+    if (!caseTerms.trim()) {
+      setGenPublishError("Case terms are required to mirror the GenLayer case.");
+      return;
+    }
+    if (!normalizedRespondent) {
+      setGenPublishError("Respondent must be a valid 0x address.");
+      return;
+    }
 
     setBusy("publishGen");
     setGenPublishError("");
@@ -395,6 +427,18 @@ export default function LiveConsole() {
       });
       await client.initializeConsensusSmartContract();
       await client.connect("localnet", "npm");
+      try {
+        await client.readContract({ address: TRIBUNAL_ADDRESS, functionName: "get_case", args: [sealedDraft.caseId] });
+      } catch {
+        const openHash = await client.writeContract({
+          address: TRIBUNAL_ADDRESS,
+          functionName: "open_case",
+          args: [caseTerms.trim(), sealedDraft.caseKey, normalizedRespondent],
+          value: 0n,
+        });
+        await client.waitForTransactionReceipt({ hash: openHash, status: TransactionStatus.ACCEPTED });
+        setSubmitGenHash(openHash);
+      }
       const txHash = await client.writeContract({
         address: TRIBUNAL_ADDRESS,
         functionName: "seal_evidence",
@@ -492,19 +536,28 @@ export default function LiveConsole() {
 
     setBusy("lookup");
     setLookupError("");
+    setLookupNotice("");
 
     try {
       const caseKey = keccakId(normalized);
       const escrow = getEscrowContract(baseProvider);
-      const [phaseRaw, escrowCaseId, tribunalCaseRaw, verdictRaw] = await Promise.all([
+      const [phaseResult, escrowCaseIdResult, tribunalCaseResult, verdictResult] = await Promise.allSettled([
         escrow.phaseOf(caseKey),
-        escrow.caseIdOf(caseKey).catch(() => ""),
-        tribunalClient.readContract({ address: TRIBUNAL_ADDRESS, functionName: "get_case", args: [normalized] }).then(String),
-        tribunalClient
-          .readContract({ address: TRIBUNAL_ADDRESS, functionName: "get_verdict", args: [normalized] })
-          .then((value) => (value == null ? null : String(value)))
-          .catch(() => null),
+        escrow.caseIdOf(caseKey),
+        tribunalClient.readContract({ address: TRIBUNAL_ADDRESS, functionName: "get_case", args: [normalized] }),
+        tribunalClient.readContract({ address: TRIBUNAL_ADDRESS, functionName: "get_verdict", args: [normalized] }),
       ]);
+
+      if (phaseResult.status === "rejected") throw phaseResult.reason;
+
+      const phaseRaw = phaseResult.value;
+      const escrowCaseId = escrowCaseIdResult.status === "fulfilled" ? escrowCaseIdResult.value : "";
+      const tribunalCaseRaw = tribunalCaseResult.status === "fulfilled" ? String(tribunalCaseResult.value) : null;
+      const verdictRaw =
+        verdictResult.status === "fulfilled" && verdictResult.value != null ? String(verdictResult.value) : null;
+      const tribunalStatus = tribunalCaseRaw
+        ? "GenLayer case found."
+        : "GenLayer case not found yet. Base escrow data is shown below.";
 
       const phaseIndex = Number(phaseRaw);
       setLookup({
@@ -513,8 +566,12 @@ export default function LiveConsole() {
         escrowPhase: PHASE_LABELS[phaseIndex] ?? `Unknown (${phaseIndex})`,
         escrowCaseId,
         tribunalCase: tribunalCaseRaw,
+        tribunalStatus,
         verdict: verdictRaw,
       });
+      if (tribunalCaseResult.status === "rejected") {
+        setLookupNotice(tribunalStatus);
+      }
     } catch (error) {
       setLookup(null);
       setLookupError(errorMessage(error));
@@ -637,7 +694,7 @@ export default function LiveConsole() {
             </div>
 
             <div className="border border-ink bg-white/70 p-4">
-              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">2. Open Escrow Case</div>
+              <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">2. Open Cause</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                 <label className="block">
                   <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450 mb-1">Suggested Case ID</div>
@@ -660,6 +717,15 @@ export default function LiveConsole() {
                   </div>
                 </label>
               </div>
+              <label className="block mt-3">
+                <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450 mb-1">Case Terms</div>
+                <textarea
+                  value={caseTerms}
+                  onChange={(event) => setCaseTerms(event.target.value)}
+                  rows={3}
+                  className="w-full border border-hair bg-white px-3 py-2 font-sans text-[12px] outline-none resize-y"
+                />
+              </label>
               <div className="mt-3 flex items-center gap-3 flex-wrap">
                 <button
                   type="button"
@@ -667,10 +733,10 @@ export default function LiveConsole() {
                   disabled={busy === "submit" || samePartyAsConnectedWallet}
                   className="bg-ink text-white px-4 py-2 font-sans text-[12px] uppercase tracking-[0.08em] hover:bg-oxblood transition-colors disabled:opacity-60"
                 >
-                  {busy === "submit" ? "Submitting..." : "Open Escrow Case"}
+                  {busy === "submit" ? "Submitting..." : "Open Cause on Both Chains"}
                 </button>
                 <div className="font-sans text-[11px] text-gray-450">
-                  Case key is derived live as <span className="font-mono">keccak256(caseId)</span>.
+                  Registers the same <span className="font-mono">AQ-n</span> and <span className="font-mono">keccak256(caseId)</span> on GenLayer and Base.
                 </div>
               </div>
               {samePartyAsConnectedWallet && (
@@ -678,9 +744,15 @@ export default function LiveConsole() {
                   Respondent cannot be the same address as the connected claimant wallet.
                 </div>
               )}
+              {submitGenHash && (
+                <div className="mt-3 border border-hair p-3">
+                  <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">GenLayer open_case</div>
+                  <div className="font-mono text-[11px] mt-1 break-all">{submitGenHash}</div>
+                </div>
+              )}
               {submitHash && (
                 <div className="mt-3 border border-hair p-3">
-                  <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Submitted Transaction</div>
+                  <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Base openCase</div>
                   <div className="font-mono text-[11px] mt-1 break-all">{submitHash}</div>
                 </div>
               )}
@@ -915,6 +987,7 @@ export default function LiveConsole() {
               <div className="mt-2 font-sans text-[11px] text-gray-450">
                 Reads both chains: Base Sepolia for escrow phase, GenLayer for case and verdict.
               </div>
+              {lookupNotice && <div className="mt-2 font-sans text-[11px] text-gray-450">{lookupNotice}</div>}
               {lookupError && <div className="mt-2 font-sans text-[11px] text-oxblood">{lookupError}</div>}
             </div>
 
@@ -942,7 +1015,7 @@ export default function LiveConsole() {
                   </div>
                   <div className="border border-hair p-3">
                     <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Tribunal Case</div>
-                    <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] text-ink-soft">{JSON.stringify(parsedTribunalCase, null, 2)}</pre>
+                    <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] text-ink-soft">{parsedTribunalCase ? JSON.stringify(parsedTribunalCase, null, 2) : lookup.tribunalStatus}</pre>
                   </div>
                   <div className="border border-hair p-3">
                     <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Verdict</div>
