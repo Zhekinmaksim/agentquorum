@@ -106,6 +106,110 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+type ErrorPresentation = {
+  summary: string;
+  hint?: string;
+  details: string;
+};
+
+function summarizeUiError(message: string): ErrorPresentation {
+  const raw = message.trim();
+  const normalized = raw.toLowerCase();
+
+  if (
+    normalized.includes("user denied transaction signature") ||
+    normalized.includes("user rejected the request") ||
+    normalized.includes("code=4001")
+  ) {
+    return {
+      summary: "Transaction canceled in wallet.",
+      hint: "Approve the prompt in MetaMask to continue.",
+      details: raw,
+    };
+  }
+
+  if (
+    normalized.includes('execution reverted: "exists"') ||
+    normalized.includes('reason="exists"') ||
+    normalized.includes("reverted with reason string 'exists'") ||
+    normalized.includes("reverted with reason string \"exists\"")
+  ) {
+    return {
+      summary: "This case already exists on-chain.",
+      hint: "Fetch the existing AQ-n record or use the next suggested case ID.",
+      details: raw,
+    };
+  }
+
+  if (normalized.includes("bad respondent")) {
+    return {
+      summary: "Respondent address is invalid for this case.",
+      hint: "Use the other party's Base wallet, not the connected claimant address.",
+      details: raw,
+    };
+  }
+
+  if (normalized.includes("no injected wallet")) {
+    return {
+      summary: "No browser wallet was detected.",
+      hint: "Open the site with MetaMask or another injected wallet.",
+      details: raw,
+    };
+  }
+
+  if (
+    normalized.includes("wallet_switchethereumchain") ||
+    normalized.includes("unrecognized chain id") ||
+    normalized.includes("chain not added") ||
+    normalized.includes("4902")
+  ) {
+    return {
+      summary: "Wallet network switch failed.",
+      hint: "Add the requested network in MetaMask, then retry the action.",
+      details: raw,
+    };
+  }
+
+  if (
+    normalized.includes("execution failed") ||
+    normalized.includes("call_exception") ||
+    normalized.includes("estimate gas") ||
+    normalized.includes("rpc error")
+  ) {
+    return {
+      summary: "Blockchain call failed.",
+      hint: "Expand details to inspect the raw RPC response.",
+      details: raw,
+    };
+  }
+
+  return {
+    summary: "Action failed.",
+    hint: "Expand details to inspect the raw message.",
+    details: raw,
+  };
+}
+
+function ErrorCallout({ message }: { message: string }) {
+  const error = summarizeUiError(message);
+
+  return (
+    <div className="mt-3 border border-oxblood bg-white p-3">
+      <div className="font-sans text-[10px] font-800 uppercase tracking-[0.08em] text-oxblood">Action Error</div>
+      <div className="mt-1 font-sans text-[12px] text-oxblood">{error.summary}</div>
+      {error.hint && <div className="mt-1 font-sans text-[11px] text-gray-450">{error.hint}</div>}
+      <details className="mt-3">
+        <summary className="cursor-pointer font-sans text-[10px] uppercase tracking-[0.08em] text-gray-450">
+          Raw details
+        </summary>
+        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all border border-hair bg-white p-3 font-mono text-[10px] leading-5 text-ink-soft">
+          {error.details}
+        </pre>
+      </details>
+    </div>
+  );
+}
+
 async function readFileAsText(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -705,7 +809,7 @@ export default function LiveConsole() {
               <div className="mt-1 font-sans text-[11px] text-gray-450">
                 GenLayer writes target {GENLAYER_CHAIN.name}. The site will prompt MetaMask to add or switch the network when a GenLayer action starts.
               </div>
-              {walletError && <div className="mt-2 font-sans text-[11px] text-oxblood">{walletError}</div>}
+              {walletError && <ErrorCallout message={walletError} />}
             </div>
 
             <div className="border border-ink bg-white/70 p-4">
@@ -772,7 +876,7 @@ export default function LiveConsole() {
                 </div>
               )}
               {submitNotice && <div className="mt-2 font-sans text-[11px] text-gray-450">{submitNotice}</div>}
-              {submitError && <div className="mt-2 font-sans text-[11px] text-oxblood">{submitError}</div>}
+              {submitError && <ErrorCallout message={submitError} />}
             </div>
 
             <div className="border border-ink bg-white/70 p-4">
@@ -888,7 +992,7 @@ export default function LiveConsole() {
                 </div>
               )}
 
-              {sealError && <div className="mt-2 font-sans text-[11px] text-oxblood">{sealError}</div>}
+              {sealError && <ErrorCallout message={sealError} />}
             </div>
 
             <div className="border border-ink bg-white/70 p-4">
@@ -975,9 +1079,9 @@ export default function LiveConsole() {
                 </div>
               )}
 
-              {genPublishError && <div className="mt-2 font-sans text-[11px] text-oxblood">{genPublishError}</div>}
-              {basePublishError && <div className="mt-2 font-sans text-[11px] text-oxblood">{basePublishError}</div>}
-              {readyError && <div className="mt-2 font-sans text-[11px] text-oxblood">{readyError}</div>}
+              {genPublishError && <ErrorCallout message={genPublishError} />}
+              {basePublishError && <ErrorCallout message={basePublishError} />}
+              {readyError && <ErrorCallout message={readyError} />}
             </div>
           </div>
 
@@ -1004,7 +1108,7 @@ export default function LiveConsole() {
                 Reads both chains: Base Sepolia for escrow phase, GenLayer for case and verdict.
               </div>
               {lookupNotice && <div className="mt-2 font-sans text-[11px] text-gray-450">{lookupNotice}</div>}
-              {lookupError && <div className="mt-2 font-sans text-[11px] text-oxblood">{lookupError}</div>}
+              {lookupError && <ErrorCallout message={lookupError} />}
             </div>
 
             <div className="border border-ink bg-white/70 p-4">
