@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BrowserProvider, Contract, JsonRpcProvider, id as keccakId, parseEther } from "ethers";
+import { BrowserProvider, Contract, JsonRpcProvider, getAddress, id as keccakId, parseEther } from "ethers";
 import { createAccount, createClient } from "genlayer-js";
 import { localnet } from "genlayer-js/chains";
 import { TransactionStatus } from "genlayer-js/types";
@@ -73,6 +73,14 @@ function trimAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+function normalizeAddress(address: string) {
+  try {
+    return getAddress(address.trim());
+  } catch {
+    return null;
+  }
+}
+
 function getEscrowContract(runner: JsonRpcProvider | BrowserProvider | Awaited<ReturnType<BrowserProvider["getSigner"]>>) {
   return new Contract(ESCROW_ADDRESS, escrowAbi, runner);
 }
@@ -144,6 +152,8 @@ export default function LiveConsole() {
   const [readyError, setReadyError] = useState("");
   const [submitHash, setSubmitHash] = useState("");
   const [busy, setBusy] = useState<"" | "connect" | "submit" | "lookup" | "seal" | "publishGen" | "publishBase" | "ready">("");
+  const normalizedRespondent = normalizeAddress(respondent);
+  const samePartyAsConnectedWallet = !!wallet && normalizedRespondent === wallet.address;
 
   useEffect(() => {
     void refreshNetwork();
@@ -236,8 +246,12 @@ export default function LiveConsole() {
       setSubmitError("Case ID is required.");
       return;
     }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(respondent.trim())) {
+    if (!normalizedRespondent) {
       setSubmitError("Respondent must be a valid 0x address.");
+      return;
+    }
+    if (normalizedRespondent === wallet.address) {
+      setSubmitError("Respondent must be a different wallet than the connected claimant.");
       return;
     }
 
@@ -252,7 +266,7 @@ export default function LiveConsole() {
       const caseId = nextCaseId.trim();
       const caseKey = keccakId(caseId);
 
-      const tx = await escrow.openCase(caseKey, respondent.trim(), caseId);
+      const tx = await escrow.openCase(caseKey, normalizedRespondent, caseId);
       await tx.wait();
 
       setSubmitHash(tx.hash);
@@ -641,13 +655,16 @@ export default function LiveConsole() {
                     placeholder="0x..."
                     className="w-full border border-hair bg-white px-3 py-2 font-mono text-[12px] outline-none"
                   />
+                  <div className="mt-1 font-sans text-[10px] text-gray-450">
+                    Use the other party&apos;s Base wallet here, not the connected claimant address.
+                  </div>
                 </label>
               </div>
               <div className="mt-3 flex items-center gap-3 flex-wrap">
                 <button
                   type="button"
                   onClick={() => { void submitOpenCase(); }}
-                  disabled={busy === "submit"}
+                  disabled={busy === "submit" || samePartyAsConnectedWallet}
                   className="bg-ink text-white px-4 py-2 font-sans text-[12px] uppercase tracking-[0.08em] hover:bg-oxblood transition-colors disabled:opacity-60"
                 >
                   {busy === "submit" ? "Submitting..." : "Open Escrow Case"}
@@ -656,6 +673,11 @@ export default function LiveConsole() {
                   Case key is derived live as <span className="font-mono">keccak256(caseId)</span>.
                 </div>
               </div>
+              {samePartyAsConnectedWallet && (
+                <div className="mt-2 font-sans text-[11px] text-oxblood">
+                  Respondent cannot be the same address as the connected claimant wallet.
+                </div>
+              )}
               {submitHash && (
                 <div className="mt-3 border border-hair p-3">
                   <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450">Submitted Transaction</div>
