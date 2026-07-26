@@ -532,8 +532,8 @@ export default function LiveConsole() {
       const visibleNow = await genLayerCaseExists(caseId);
       setSubmitNotice(
         visibleNow
-          ? "GenLayer cause opened first, then mirrored to Base with the same AQ-n and caseKey."
-          : "GenLayer accepted the cause and Base mirrored it. If Fetch does not show the GenLayer record immediately, wait a few seconds and retry."
+          ? "Base confirmed. GenLayer visible."
+          : "Base confirmed. GenLayer pending visibility."
       );
       setSealCaseId(caseId);
       setLookupCaseId(caseId);
@@ -541,22 +541,25 @@ export default function LiveConsole() {
       await refreshNetwork();
     } catch (error) {
       const rawMessage = errorMessage(error);
-      const [confirmedOnGenLayer, confirmedOnBase] = await Promise.all([
-        openedOnGenLayer ? Promise.resolve(true) : genLayerCaseExists(caseId),
+      const [visibleOnGenLayer, confirmedOnBase] = await Promise.all([
+        genLayerCaseExists(caseId),
         caseKey ? (mirroredOnBase ? Promise.resolve(true) : baseMirrorExists(caseKey)) : Promise.resolve(false),
       ]);
+      const acceptedOnGenLayer = openedOnGenLayer || visibleOnGenLayer;
 
-      if (confirmedOnGenLayer) {
+      if (acceptedOnGenLayer) {
         setSubmitError("");
         setSealCaseId(caseId);
         setLookupCaseId(caseId);
         await refreshCase(caseId);
         await refreshNetwork();
 
-        if (confirmedOnBase) {
-          setSubmitNotice("This cause is already open on both chains. The previous error was stale, but chain state is now confirmed.");
+        if (confirmedOnBase && visibleOnGenLayer) {
+          setSubmitNotice("Base confirmed. GenLayer visible.");
+        } else if (confirmedOnBase) {
+          setSubmitNotice("Base confirmed. GenLayer pending visibility.");
         } else {
-          setSubmitNotice("GenLayer accepted this cause. Base mirror is not confirmed yet, so switch to Base Sepolia and retry the mirror if needed.");
+          setSubmitNotice("GenLayer accepted. Base pending confirmation.");
         }
         return;
       }
@@ -811,8 +814,10 @@ export default function LiveConsole() {
       const verdictRaw =
         verdictResult.status === "fulfilled" && verdictResult.value != null ? String(verdictResult.value) : null;
       const tribunalStatus = tribunalCaseRaw
-        ? "GenLayer case found."
-        : "GenLayer case not found yet. Base escrow data is shown below.";
+        ? "Base confirmed. GenLayer visible."
+        : escrowCaseId
+          ? "Base confirmed. GenLayer pending visibility."
+          : "GenLayer case not found yet.";
 
       const phaseIndex = Number(phaseRaw);
       setLookup({
@@ -825,7 +830,7 @@ export default function LiveConsole() {
         verdict: verdictRaw,
       });
       if (tribunalCaseRaw && !escrowCaseId) {
-        setLookupNotice("GenLayer case exists, but the Base escrow mirror is not visible yet.");
+        setLookupNotice("GenLayer visible. Base pending confirmation.");
       } else if (tribunalCaseResult.status === "rejected") {
         setLookupNotice(tribunalStatus);
       }
