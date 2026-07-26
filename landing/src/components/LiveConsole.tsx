@@ -217,6 +217,14 @@ function summarizeUiError(message: string): ErrorPresentation {
     };
   }
 
+  if (normalized.includes("in get_case") && normalized.includes("keyerror")) {
+    return {
+      summary: "GenLayer has not exposed the new case record yet.",
+      hint: "The write may already be accepted. Wait a few seconds, then retry Fetch or continue with the Base mirror step.",
+      details: raw,
+    };
+  }
+
   if (
     normalized.includes("execution failed") ||
     normalized.includes("call_exception") ||
@@ -509,7 +517,6 @@ export default function LiveConsole() {
         value: 0n,
       });
       await client.waitForTransactionReceipt({ hash: genTxHash, status: TransactionStatus.ACCEPTED });
-      await tribunalClient.readContract({ address: TRIBUNAL_ADDRESS, functionName: "get_case", args: [caseId] });
       openedOnGenLayer = true;
       setSubmitGenHash(genTxHash);
 
@@ -522,7 +529,12 @@ export default function LiveConsole() {
 
       mirroredOnBase = true;
       setSubmitHash(tx.hash);
-      setSubmitNotice("GenLayer cause opened first, then mirrored to Base with the same AQ-n and caseKey.");
+      const visibleNow = await genLayerCaseExists(caseId);
+      setSubmitNotice(
+        visibleNow
+          ? "GenLayer cause opened first, then mirrored to Base with the same AQ-n and caseKey."
+          : "GenLayer accepted the cause and Base mirrored it. If Fetch does not show the GenLayer record immediately, wait a few seconds and retry."
+      );
       setSealCaseId(caseId);
       setLookupCaseId(caseId);
       await refreshCase(caseId);
