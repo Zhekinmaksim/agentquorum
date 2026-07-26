@@ -795,6 +795,54 @@ export default function LiveConsole() {
     { label: "Publish", value: basePublish || genPublishTx ? "In progress" : "Both chains", active: !!sealedDraft && !(basePublish && genPublishTx) },
     { label: "Monitor", value: lookup?.escrowPhase ?? "Fetch", active: !!lookup },
   ];
+  const currentTarget = (() => {
+    if (!wallet) {
+      return {
+        chain: "Connect wallet",
+        detail: "Connect first, then the console will guide the network step-by-step.",
+      };
+    }
+    if (busy === "submit" || busy === "publishGen") {
+      return {
+        chain: GENLAYER_CHAIN.name,
+        detail: "The current action is writing to GenLayer.",
+      };
+    }
+    if (busy === "publishBase" || busy === "ready") {
+      return {
+        chain: "Base Sepolia",
+        detail: "The current action is writing to Base Sepolia.",
+      };
+    }
+    if (!submitGenHash && !submitHash) {
+      return {
+        chain: `${GENLAYER_CHAIN.name} -> Base Sepolia`,
+        detail: "Open the cause on GenLayer first. The Base mirror comes second.",
+      };
+    }
+    if (!sealedDraft) {
+      return {
+        chain: "Browser local step",
+        detail: "Seal evidence locally in the browser. No chain switch is needed yet.",
+      };
+    }
+    if (!genPublishTx) {
+      return {
+        chain: GENLAYER_CHAIN.name,
+        detail: "Publish the sealed commitment and blob URI to GenLayer next.",
+      };
+    }
+    if (!basePublish || !readyHash) {
+      return {
+        chain: "Base Sepolia",
+        detail: "Publish the encrypted bond/key and mark the case ready on Base Sepolia.",
+      };
+    }
+    return {
+      chain: "Monitor both chains",
+      detail: "Use Fetch to read Base escrow state and the GenLayer verdict together.",
+    };
+  })();
 
   return (
     <section id="live-state" className="max-w-[1180px] mx-auto px-7 pb-6 scroll-mt-24">
@@ -811,6 +859,19 @@ export default function LiveConsole() {
           >
             Refresh Live State
           </button>
+        </div>
+
+        <div className="mt-4 border border-ink bg-white p-3">
+          <div className="font-sans text-[9px] font-800 uppercase tracking-[0.12em] text-gray-450">Current Target</div>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <div className="font-display text-[22px] leading-none">{currentTarget.chain}</div>
+            {wallet && (
+              <div className="border border-hair px-2 py-1 font-sans text-[10px] uppercase tracking-[0.08em] text-gray-450">
+                Wallet on {describeChain(wallet.chainId)}
+              </div>
+            )}
+          </div>
+          <div className="mt-2 font-sans text-[11px] text-gray-450">{currentTarget.detail}</div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-5">
@@ -901,6 +962,9 @@ export default function LiveConsole() {
 
             <div id="open-cause" className="border border-ink bg-white/70 p-4 scroll-mt-24">
               <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">2. Open Cause</div>
+              <div className="mt-2 inline-flex border border-hair px-2 py-1 font-sans text-[10px] uppercase tracking-[0.08em] text-gray-450">
+                Target network: {GENLAYER_CHAIN.name}, then Base Sepolia
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                 <label className="block">
                   <div className="font-sans text-[9px] uppercase tracking-[0.08em] text-gray-450 mb-1">Suggested Case ID</div>
@@ -1084,6 +1148,9 @@ export default function LiveConsole() {
 
             <div id="publish-sealed-inputs" className="border border-ink bg-white/70 p-4 scroll-mt-24">
               <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">4. Publish Sealed Inputs</div>
+              <div className="mt-2 inline-flex border border-hair px-2 py-1 font-sans text-[10px] uppercase tracking-[0.08em] text-gray-450">
+                Target order: GenLayer seal, then Base bond/key, then Base ready
+              </div>
               <div className="mt-2 font-sans text-[11px] text-gray-450">Publish the commitment and blob URI to GenLayer, then publish encrypted bond and key to Base Sepolia.</div>
               <div className="mt-3 flex flex-wrap gap-3">
                 <button
