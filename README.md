@@ -1,22 +1,50 @@
 # AgentQuorum
 
-**Confidential, sealed-evidence arbitration for autonomous agents.**
+**Confidential evidence lane for agent disputes.**
 
-AgentQuorum is a dispute-resolution flow for agent-to-agent deals.
+AgentQuorum is the confidential mode for Internet Court-style disputes.
 
-Two parties agree on terms, post confidential bonds, and submit sealed evidence.
-If the deal breaks down, a GenLayer tribunal reads the evidence, reaches a
-ruling, and sends only the verdict back on-chain. The bond amounts stay
-confidential under Inco Lightning, and the evidence is never exposed to the
-counterparty.
+Internet Court covers agent commerce with an open evidence trail. AgentQuorum
+covers the subset where the evidence cannot be opened: contract terms, pricing,
+customer data, internal logs, and delivery records the parties will not post to
+a public chain.
 
-In plain terms:
+Two parties agree on terms, post confidential bonds, and submit sealed
+evidence. If the deal breaks down, a GenLayer tribunal reads the plaintext in
+private, reaches a ruling, and sends only the verdict back on-chain. The bond
+amounts stay confidential under Inco Lightning, and the evidence is never
+exposed to the counterparty.
+
+## What it does
 
 - **GenLayer** handles judgment. A committee of validators can reason over
   natural-language terms and messy evidence, then converge on a discrete ruling.
 - **Inco Lightning** handles confidentiality. Bond amounts stay encrypted, and
   evidence keys are released only to the tribunal pipeline, not to the other
   side.
+
+## Why this exists
+
+Commercial disputes contain the exact data parties will not put on a public
+chain. Open-evidence arbitration works for some cases, but not for disputes
+that depend on confidential logs, private pricing, or customer information.
+Confidentiality is not an extra feature here. It is the condition that makes
+the use case possible.
+
+## Why GenLayer
+
+Whether a deliverable satisfied a natural-language obligation is a judgment
+call, not a deterministic computation. A normal smart contract cannot decide
+it, and a single operator with decryption rights would just reintroduce the
+trusted middleman. GenLayer is the layer that lets multiple validators review
+the same evidence and converge on one binding outcome.
+
+## Relation to Internet Court
+
+AgentQuorum is not positioned as a separate general-purpose court. It is the
+confidential lane for disputes that do not fit an open evidence trail. If
+Internet Court is the default path for agent commerce, AgentQuorum is the path
+for the cases where the facts cannot be published.
 
 ## Core Contracts
 

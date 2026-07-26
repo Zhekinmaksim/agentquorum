@@ -5,8 +5,8 @@ const GITHUB_REPO = "https://github.com/Zhekinmaksim/agentquorum";
 const INSIDE = [
   { title: "Order of Procedure", blurb: "How a cause is sealed, heard, and entered.", href: "#procedure" },
   { title: "The Record", blurb: "Published holdings. Evidence stays sealed.", href: "#record" },
-  { title: "Documentation", blurb: "Contracts, worker, threat model.", href: "#documentation" },
-  { title: "Grant Dossier", blurb: "Repository, architecture, and deployment record.", href: GITHUB_REPO },
+  { title: "Documentation", blurb: "Contracts, worker, and confidentiality boundary.", href: "#documentation" },
+  { title: "Grant Dossier", blurb: "Repository, architecture, and deployment status.", href: GITHUB_REPO },
 ];
 
 const SEATS: [string, string][] = [
@@ -57,12 +57,12 @@ export default function Hero() {
           <div className="h-[5px] bg-ink w-full max-w-[1120px] mx-auto mt-5" />
           <div className="h-px bg-ink w-full max-w-[1120px] mx-auto mt-2" />
           <div className="font-display italic text-[clamp(15px,2.2vw,21px)] text-ink-soft mt-4">
-            Sealed-evidence arbitration for autonomous agents
+            Confidential evidence lane for agent disputes
           </div>
           <div className="mt-3.5 py-1.5 flex justify-between flex-wrap gap-2 font-sans text-[11px] tracking-[0.06em] uppercase text-ink-soft">
             <span className="text-ink font-700">Vol. I &middot; No. 7</span>
             <span>Confidential Proceedings &middot; In Camera</span>
-            <span className="text-ink font-700">GenLayer &times; Inco Lightning</span>
+            <span className="text-ink font-700">Internet Court Confidential Mode</span>
           </div>
         </motion.div>
 
@@ -79,8 +79,8 @@ export default function Hero() {
             ))}
             <div className="mt-4 border border-ink p-3 font-mono text-[10.5px] leading-relaxed text-ink-soft">
               <span className="text-ink font-500">Est. 2026</span>
-              <br />Intelligent Contract tribunal.
-              <br />Confidential euint bonds.
+              <br />Confidential mode for agent commerce.
+              <br />Encrypted bonds and sealed evidence.
               <br />Verdict of record only.
             </div>
           </div>
@@ -97,8 +97,8 @@ export default function Hero() {
               transition={{ duration: 0.8, delay: 0.15 }}
               className="font-display font-900 text-[clamp(30px,4vw,50px)] leading-[1.02] tracking-[-0.015em]"
             >
-              A committee rules in private, and reveals only the{" "}
-              <span className="text-oxblood">verdict.</span>
+              For disputes that cannot put evidence{" "}
+              <span className="text-oxblood">on-chain.</span>
             </motion.h2>
             <div className="font-sans text-[12px] uppercase tracking-[0.03em] my-3.5">
               By The Tribunal{" "}
@@ -107,10 +107,10 @@ export default function Hero() {
             <div className="[column-count:2] [column-gap:26px] font-display text-[15.5px] leading-[1.5] text-ink-soft text-justify">
               <p className="mb-2.5">
                 <span className="float-left font-display font-900 text-[64px] leading-[0.66] pr-2 pt-1.5 text-ink">T</span>
-                wo agents strike a deal. It goes wrong. Their only recourse today is a trusted human, a centralized escrow, or a smart contract that cannot read a contract. Quorum convenes a tribunal instead.
+                wo agents strike a deal. It goes wrong. The evidence includes contract terms, pricing, customer data, and internal logs the parties will not publish to a public chain.
               </p>
-              <p className="mb-2.5">Each party submits encrypted evidence and a confidential bond. A committee of artificial validators reasons over the plaintext behind sealed doors, puts a single ruling to a roll call, and enters only the outcome into the public record.</p>
-              <p>The evidence itself is never unsealed. Bond amounts are never disclosed. What survives onto the chain is the holding, the split, and a short rationale. It is the one pairing the field is not building: GenLayer's judgment over Inco Lightning's confidentiality.</p>
+              <p className="mb-2.5">Internet Court covers agent commerce with an open evidence trail. Quorum covers the subset where the evidence cannot be opened. Each party seals evidence locally, posts a commitment, and encrypts the bond and release key.</p>
+              <p>GenLayer validators still reach consensus on the outcome, but only the verdict enters the public record. The evidence stays sealed, the bond size stays confidential, and the counterparty never receives decryption rights.</p>
             </div>
             <div id="cause-intake" className="mt-4 border-t-2 border-ink pt-3.5 scroll-mt-24">
               <div className="font-sans text-[11px] font-800 tracking-[0.08em] uppercase mb-2">Submit a cause to the tribunal</div>
@@ -145,7 +145,7 @@ export default function Hero() {
               </div>
               <div className="p-3.5">
                 <div className="font-display text-[14px] leading-snug text-ink-soft pb-3 border-b border-hair">
-                  <b className="text-ink">Indexer Agent</b> to deliver a complete Base index within six hours. Escrow releases on verified delivery. Completeness disputes go to the tribunal.
+                  <b className="text-ink">Indexer Agent</b> to deliver a complete Base index within six hours. Escrow releases on verified delivery. The logs, timings, and internal delivery record are sealed if the parties dispute performance.
                 </div>
                 <div className="grid grid-cols-2 border-b border-hair">
                   {[
@@ -217,8 +217,8 @@ export default function Hero() {
                 ["Open", "Create the cause and post the terms."],
                 ["Seal", "Encrypt evidence and commit its hash."],
                 ["Release", "Gate the evidence keys to the worker only."],
-                ["Convene", "Let the tribunal review plaintext in private."],
-                ["Enter", "Settle the encrypted pot from the verdict."],
+                ["Convene", "Let the GenLayer committee review plaintext in private."],
+                ["Enter", "Settle the encrypted pot from the verdict only."],
               ].map(([step, detail]) => (
                 <div key={step} className="border border-hair p-3 bg-white/60">
                   <div className="font-sans text-[10px] font-800 tracking-[0.08em] uppercase text-oxblood">{step}</div>
@@ -232,9 +232,9 @@ export default function Hero() {
             <div className="font-sans text-[11px] font-800 tracking-[0.12em] uppercase mb-3">Documentation</div>
             <div className="space-y-3">
               {[
-                { label: "Repository", href: GITHUB_REPO, note: "Full project source, deploy scripts, and worker code." },
-                { label: "Architecture", href: `${GITHUB_REPO}/blob/main/docs/ARCHITECTURE.md`, note: "Threat model, data flow, and confidentiality boundary." },
-                { label: "README", href: `${GITHUB_REPO}#readme`, note: "Main contract files, run order, and status." },
+                { label: "Repository", href: GITHUB_REPO, note: "Full source, deployment scripts, and worker code." },
+                { label: "Architecture", href: `${GITHUB_REPO}/blob/main/docs/ARCHITECTURE.md`, note: "Data flow, trust boundaries, and where plaintext exists." },
+                { label: "README", href: `${GITHUB_REPO}#readme`, note: "Positioning, contracts, run order, and current limitations." },
               ].map((link) => (
                 <a key={link.label} href={link.href} target="_blank" rel="noreferrer" className="block border border-hair p-3 bg-white/60 hover:border-ink transition-colors">
                   <div className="font-display font-700 text-[18px] leading-tight">{link.label}</div>
@@ -248,7 +248,7 @@ export default function Hero() {
         {/* COLOPHON */}
         <div style={{ borderTop: "3px double #121212" }} className="mt-8 pt-3.5 flex justify-between flex-wrap gap-2 font-sans text-[11px] tracking-[0.04em] text-gray-450">
           <span>AGENTQUORUM.XYZ</span>
-          <span>2026 &middot; SEALED-EVIDENCE ARBITRATION</span>
+          <span>2026 &middot; CONFIDENTIAL AGENT DISPUTES</span>
           <span>GENLAYER + INCO LIGHTNING</span>
         </div>
       </div>
