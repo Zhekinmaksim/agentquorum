@@ -18,6 +18,7 @@ const INCO_OP_VALUE = parseEther("0.0001");
 
 const PHASE_LABELS = ["None", "Open", "Ready", "Settled", "Refunded"] as const;
 const DEFAULT_LOOKUP_CASE = "AQ-0";
+const LAST_CONFIRMED_CASE_KEY = "agentquorum:last-confirmed-case";
 
 type WalletState = {
   address: `0x${string}`;
@@ -275,6 +276,29 @@ function ErrorCallout({ message }: { message: string }) {
   );
 }
 
+function caseNumber(caseId: string) {
+  const match = /^AQ-(\d+)$/i.exec(caseId.trim());
+  return match ? Number(match[1]) : null;
+}
+
+function readLastConfirmedCaseNumber() {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(LAST_CONFIRMED_CASE_KEY);
+  if (!raw) return null;
+  const parsed = caseNumber(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function rememberConfirmedCase(caseId: string) {
+  if (typeof window === "undefined") return;
+  const current = caseNumber(caseId);
+  if (current == null) return;
+  const previous = readLastConfirmedCaseNumber();
+  if (previous == null || current > previous) {
+    window.localStorage.setItem(LAST_CONFIRMED_CASE_KEY, `AQ-${current}`);
+  }
+}
+
 async function readFileAsText(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -341,9 +365,11 @@ export default function LiveConsole() {
     ]);
 
     const totalCases = Number(totalCasesRaw);
+    const lastConfirmedCaseNumber = readLastConfirmedCaseNumber();
+    const nextCaseNumber = Math.max(totalCases, (lastConfirmedCaseNumber ?? -1) + 1);
     setNetwork({ relayer, worker, totalCases });
-    setNextCaseId((current) => current || `AQ-${totalCases}`);
-    setSealCaseId((current) => current || `AQ-${totalCases}`);
+    setNextCaseId((current) => current || `AQ-${nextCaseNumber}`);
+    setSealCaseId((current) => current || `AQ-${nextCaseNumber}`);
   }
 
   async function expectedCaseIdFromGenLayer() {
@@ -536,6 +562,7 @@ export default function LiveConsole() {
       await tx.wait();
 
       mirroredOnBase = true;
+      rememberConfirmedCase(caseId);
       setSubmitHash(tx.hash);
       const visibleNow = await genLayerCaseExists(caseId);
       setSubmitNotice(
@@ -559,6 +586,7 @@ export default function LiveConsole() {
         setSubmitError("");
         setSealCaseId(caseId);
         setLookupCaseId(caseId);
+        if (confirmedOnBase) rememberConfirmedCase(caseId);
         await refreshCase(caseId);
         await refreshNetwork();
 
