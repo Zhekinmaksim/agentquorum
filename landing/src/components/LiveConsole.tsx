@@ -170,11 +170,20 @@ function summarizeUiError(message: string): ErrorPresentation {
     };
   }
 
+  if (normalized.includes("pipeline backpressure") || normalized.includes("l1_sender_commit")) {
+    return {
+      summary: "GenLayer is temporarily overloaded.",
+      hint: "The Bradbury testnet node is not accepting new transactions right now. Wait a few seconds and retry.",
+      details: raw,
+    };
+  }
+
   if (
     normalized.includes("execution failed") ||
     normalized.includes("call_exception") ||
     normalized.includes("estimate gas") ||
-    normalized.includes("rpc error")
+    normalized.includes("rpc error") ||
+    normalized.includes("internal error was received")
   ) {
     return {
       summary: "Blockchain call failed.",
