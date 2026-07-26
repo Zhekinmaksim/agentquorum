@@ -104,7 +104,45 @@ function describeChain(chainId: number) {
 }
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
+  const seen = new Set<unknown>();
+  const fragments: string[] = [];
+
+  function push(value: unknown) {
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    if (!fragments.includes(trimmed)) fragments.push(trimmed);
+  }
+
+  function visit(value: unknown) {
+    if (value == null || seen.has(value)) return;
+    if (typeof value === "string") {
+      push(value);
+      return;
+    }
+    if (typeof value !== "object") {
+      push(String(value));
+      return;
+    }
+
+    seen.add(value);
+    if (value instanceof Error) {
+      push(value.message);
+      visit((value as Error & { cause?: unknown }).cause);
+    }
+
+    const record = value as Record<string, unknown>;
+    push(typeof record.shortMessage === "string" ? record.shortMessage : "");
+    push(typeof record.details === "string" ? record.details : "");
+    push(typeof record.reason === "string" ? record.reason : "");
+    push(typeof record.message === "string" ? record.message : "");
+    visit(record.cause);
+    visit(record.error);
+    visit(record.data);
+  }
+
+  visit(error);
+  return fragments.join("\n\n") || String(error);
 }
 
 type ErrorPresentation = {
@@ -184,7 +222,8 @@ function summarizeUiError(message: string): ErrorPresentation {
     normalized.includes("call_exception") ||
     normalized.includes("estimate gas") ||
     normalized.includes("rpc error") ||
-    normalized.includes("internal error was received")
+    normalized.includes("internal error was received") ||
+    normalized.includes("server returned an error response")
   ) {
     return {
       summary: "Blockchain call failed.",
