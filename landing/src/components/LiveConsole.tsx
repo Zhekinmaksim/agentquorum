@@ -9,6 +9,7 @@ const env = (import.meta as ImportMeta & { env?: Record<string, string | undefin
 const BASE_SEPOLIA_RPC = "https://sepolia.base.org";
 const BASE_SEPOLIA_CHAIN_ID = 84532;
 const BASE_SEPOLIA_CHAIN_ID_HEX = "0x14A34";
+const BASE_SEPOLIA_EXPLORER = "https://sepolia.basescan.org";
 const GENLAYER_CHAIN_ID = GENLAYER_CHAIN.id;
 const ESCROW_ADDRESS = env.VITE_ESCROW_ADDRESS ?? "0x0a2b41f8814f310A09e0Fbe256B55464d408666B";
 const TRIBUNAL_ADDRESS = (env.VITE_TRIBUNAL_ADDRESS ??
@@ -351,10 +352,42 @@ export default function LiveConsole() {
 
   async function ensureBaseSepoliaChain() {
     if (!injectedEthereum()) throw new Error("No injected wallet found.");
-    await injectedEthereum()!.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: BASE_SEPOLIA_CHAIN_ID_HEX }],
-    });
+    try {
+      await injectedEthereum()!.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: BASE_SEPOLIA_CHAIN_ID_HEX }],
+      });
+    } catch (error) {
+      const message = errorMessage(error).toLowerCase();
+      const code = typeof error === "object" && error !== null && "code" in error ? Number((error as { code?: unknown }).code) : NaN;
+      if (
+        code === 4902 ||
+        message.includes("unrecognized chain id") ||
+        message.includes("chain not added") ||
+        message.includes("unknown chain")
+      ) {
+        await injectedEthereum()!.request({
+          method: "wallet_addEthereumChain",
+          params: [{
+            chainId: BASE_SEPOLIA_CHAIN_ID_HEX,
+            chainName: "Base Sepolia",
+            nativeCurrency: {
+              name: "ETH",
+              symbol: "ETH",
+              decimals: 18,
+            },
+            rpcUrls: [BASE_SEPOLIA_RPC],
+            blockExplorerUrls: [BASE_SEPOLIA_EXPLORER],
+          }],
+        });
+        await injectedEthereum()!.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: BASE_SEPOLIA_CHAIN_ID_HEX }],
+        });
+      } else {
+        throw error;
+      }
+    }
     await syncWalletFromProvider();
   }
 
@@ -764,7 +797,7 @@ export default function LiveConsole() {
   ];
 
   return (
-    <section id="live-state" className="max-w-[1180px] mx-auto px-7 pb-6">
+    <section id="live-state" className="max-w-[1180px] mx-auto px-7 pb-6 scroll-mt-24">
       <div className="border-t-[3px] border-double border-ink pt-4">
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
@@ -819,7 +852,7 @@ export default function LiveConsole() {
               </div>
             </details>
 
-            <div className="border border-ink bg-white/70 p-4">
+            <div id="connect-wallet" className="border border-ink bg-white/70 p-4 scroll-mt-24">
               <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">1. Connect Wallet</div>
               <div className="mt-3 flex flex-wrap gap-3 items-center">
                 {wallet ? (
@@ -866,7 +899,7 @@ export default function LiveConsole() {
               {walletError && <ErrorCallout message={walletError} />}
             </div>
 
-            <div className="border border-ink bg-white/70 p-4">
+            <div id="open-cause" className="border border-ink bg-white/70 p-4 scroll-mt-24">
               <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">2. Open Cause</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                 <label className="block">
@@ -933,7 +966,7 @@ export default function LiveConsole() {
               {submitError && <ErrorCallout message={submitError} />}
             </div>
 
-            <div className="border border-ink bg-white/70 p-4">
+            <div id="seal-evidence" className="border border-ink bg-white/70 p-4 scroll-mt-24">
               <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">3. Seal Evidence Locally</div>
               <div className="mt-2 font-sans text-[11px] text-gray-450">Plaintext stays in the browser. The page produces a ciphertext blob, a commitment, and encrypted Inco inputs.</div>
 
@@ -1049,7 +1082,7 @@ export default function LiveConsole() {
               {sealError && <ErrorCallout message={sealError} />}
             </div>
 
-            <div className="border border-ink bg-white/70 p-4">
+            <div id="publish-sealed-inputs" className="border border-ink bg-white/70 p-4 scroll-mt-24">
               <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">4. Publish Sealed Inputs</div>
               <div className="mt-2 font-sans text-[11px] text-gray-450">Publish the commitment and blob URI to GenLayer, then publish encrypted bond and key to Base Sepolia.</div>
               <div className="mt-3 flex flex-wrap gap-3">
@@ -1140,7 +1173,7 @@ export default function LiveConsole() {
           </div>
 
           <div className="space-y-5 lg:sticky lg:top-[76px] lg:self-start">
-            <div className="border border-ink bg-white/70 p-4">
+            <div id="monitor-case" className="border border-ink bg-white/70 p-4 scroll-mt-24">
               <div className="font-sans text-[10px] font-800 uppercase tracking-[0.1em] text-gray-450">5. Monitor Case</div>
               <div className="flex gap-3 mt-3">
                 <input

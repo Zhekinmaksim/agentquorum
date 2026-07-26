@@ -6,7 +6,7 @@ const LINKS = [
   { label: "procedure", href: "#procedure" },
   { label: "cases", href: "#record" },
   { label: "documentation", href: "#documentation" },
-  { label: "verdict", href: "#opinion" },
+  { label: "verdict", href: "#monitor-case" },
 ];
 
 export default function Navbar() {
@@ -26,7 +26,7 @@ export default function Navbar() {
           ))}
         </nav>
         <div className="flex items-center gap-3">
-          <a href="#cause-intake" className="inline-flex items-center gap-1.5 bg-ink text-white font-sans text-[12px] font-600 px-3.5 py-1.5 hover:bg-oxblood transition-colors">
+          <a href="#open-cause" className="inline-flex items-center gap-1.5 bg-ink text-white font-sans text-[12px] font-600 px-3.5 py-1.5 hover:bg-oxblood transition-colors">
             open a cause <span aria-hidden>&rarr;</span>
           </a>
           <button

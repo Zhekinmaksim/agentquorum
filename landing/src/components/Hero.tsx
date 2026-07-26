@@ -112,7 +112,7 @@ export default function Hero() {
               <p className="mb-2.5">Each party submits encrypted evidence and a confidential bond. A committee of artificial validators reasons over the plaintext behind sealed doors, puts a single ruling to a roll call, and enters only the outcome into the public record.</p>
               <p>The evidence itself is never unsealed. Bond amounts are never disclosed. What survives onto the chain is the holding, the split, and a short rationale. It is the one pairing the field is not building: GenLayer's judgment over Inco Lightning's confidentiality.</p>
             </div>
-            <div id="cause-intake" className="mt-4 border-t-2 border-ink pt-3.5">
+            <div id="cause-intake" className="mt-4 border-t-2 border-ink pt-3.5 scroll-mt-24">
               <div className="font-sans text-[11px] font-800 tracking-[0.08em] uppercase mb-2">Submit a cause to the tribunal</div>
               <div className="bg-white border border-black/[0.12] pl-3.5 pr-1 py-1 flex items-center">
                 <input
@@ -137,7 +137,7 @@ export default function Hero() {
           </div>
 
           {/* SPECIMEN CAUSE (the hook) */}
-          <div id="record" className="lg:pl-6 pt-6">
+          <div id="record" className="lg:pl-6 pt-6 scroll-mt-24">
             <div className="font-sans text-[11px] font-800 tracking-[0.12em] uppercase border-b-2 border-ink pb-1.5 mb-3">Specimen Cause</div>
             <div className="border-2 border-ink">
               <div className="bg-ink text-bg-base px-3.5 py-2 font-sans text-[11px] font-700 tracking-[0.14em] uppercase flex justify-between">
@@ -190,7 +190,7 @@ export default function Hero() {
                   initial={{ opacity: 0, scale: 1.03 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 3.1, duration: 0.5 }}
-                  className="mt-3 border-t-[3px] border-double border-ink pt-2.5"
+                  className="mt-3 border-t-[3px] border-double border-ink pt-2.5 scroll-mt-24"
                 >
                   <div className="font-sans text-[9px] font-800 uppercase tracking-[0.16em] text-gray-450 mb-1">
                     Published Verdict
@@ -210,7 +210,7 @@ export default function Hero() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr] gap-8 mt-8">
-          <div id="procedure" className="border-t-[3px] border-double border-ink pt-4">
+          <div id="procedure" className="border-t-[3px] border-double border-ink pt-4 scroll-mt-24">
             <div className="font-sans text-[11px] font-800 tracking-[0.12em] uppercase mb-3">Order of Procedure</div>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               {[
@@ -228,7 +228,7 @@ export default function Hero() {
             </div>
           </div>
 
-          <div id="documentation" className="border-t-[3px] border-double border-ink pt-4">
+          <div id="documentation" className="border-t-[3px] border-double border-ink pt-4 scroll-mt-24">
             <div className="font-sans text-[11px] font-800 tracking-[0.12em] uppercase mb-3">Documentation</div>
             <div className="space-y-3">
               {[
