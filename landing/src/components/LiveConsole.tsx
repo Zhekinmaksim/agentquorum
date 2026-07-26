@@ -21,7 +21,6 @@ const PHASE_LABELS = ["None", "Open", "Ready", "Settled", "Refunded"] as const;
 const DEFAULT_LOOKUP_CASE = "AQ-0";
 const LAST_CONFIRMED_CASE_KEY = "agentquorum:last-confirmed-case";
 const LAST_ACTIVE_CASE_KEY = "agentquorum:last-active-case";
-const NEXT_SUGGESTED_CASE_KEY = "agentquorum:next-suggested-case";
 
 type WalletState = {
   address: `0x${string}`;
@@ -237,6 +236,14 @@ function summarizeUiError(message: string): ErrorPresentation {
     };
   }
 
+  if (normalized.includes("genlayer currently expects aq-")) {
+    return {
+      summary: "GenLayer has not advanced to the next AQ id yet.",
+      hint: "Open Cause must use the exact AQ-n currently reported by GenLayer. Wait for the previous case to become visible, then retry.",
+      details: raw,
+    };
+  }
+
   if (
     normalized.includes("execution failed") ||
     normalized.includes("call_exception") ||
@@ -304,19 +311,6 @@ function readLastActiveCaseId() {
   return parsed == null ? null : `AQ-${parsed}`;
 }
 
-function readNextSuggestedCaseNumber() {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(NEXT_SUGGESTED_CASE_KEY);
-  if (!raw) return null;
-  const parsed = caseNumber(raw);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function readNextSuggestedCaseId() {
-  const number = readNextSuggestedCaseNumber();
-  return number == null ? null : `AQ-${number}`;
-}
-
 function rememberConfirmedCase(caseId: string) {
   if (typeof window === "undefined") return;
   const current = caseNumber(caseId);
@@ -334,17 +328,6 @@ function rememberActiveCase(caseId: string) {
   window.localStorage.setItem(LAST_ACTIVE_CASE_KEY, `AQ-${current}`);
 }
 
-function rememberSuggestedNextCase(caseId: string) {
-  if (typeof window === "undefined") return;
-  const current = caseNumber(caseId);
-  if (current == null) return;
-  const suggested = current + 1;
-  const previous = readNextSuggestedCaseNumber();
-  if (previous == null || suggested > previous) {
-    window.localStorage.setItem(NEXT_SUGGESTED_CASE_KEY, `AQ-${suggested}`);
-  }
-}
-
 async function readFileAsText(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -360,12 +343,7 @@ export default function LiveConsole() {
 
   const [wallet, setWallet] = useState<WalletState | null>(null);
   const [network, setNetwork] = useState<NetworkSnapshot>({ totalCases: null, relayer: "", worker: "" });
-  const [nextCaseId, setNextCaseId] = useState(() => {
-    const suggested = readNextSuggestedCaseId();
-    if (suggested) return suggested;
-    const lastConfirmed = readLastConfirmedCaseNumber();
-    return lastConfirmed == null ? "" : `AQ-${lastConfirmed + 1}`;
-  });
+  const [nextCaseId, setNextCaseId] = useState("");
   const [caseTerms, setCaseTerms] = useState("Deliver index in 6h with complete rows and reproducible methodology.");
   const [respondent, setRespondent] = useState("");
   const [lookupCaseId, setLookupCaseId] = useState(() => readLastActiveCaseId() ?? readLastConfirmedCaseId() ?? DEFAULT_LOOKUP_CASE);
@@ -418,18 +396,14 @@ export default function LiveConsole() {
 
     const totalCases = Number(totalCasesRaw);
     const lastConfirmedCaseNumber = readLastConfirmedCaseNumber();
-    const suggestedNextCaseNumber = readNextSuggestedCaseNumber();
     const lastActiveCaseId = readLastActiveCaseId();
     const derivedBaseCaseNumber = caseNumber(latestBaseCaseId ?? "");
     if (latestBaseCaseId) rememberConfirmedCase(latestBaseCaseId);
     const strongestKnownCaseNumber = Math.max(lastConfirmedCaseNumber ?? -1, derivedBaseCaseNumber ?? -1);
     const strongestKnownCaseId = strongestKnownCaseNumber >= 0 ? `AQ-${strongestKnownCaseNumber}` : null;
-    const nextCaseNumber = Math.max(totalCases, strongestKnownCaseNumber + 1, suggestedNextCaseNumber ?? -1);
+    const nextCaseNumber = totalCases;
     setNetwork({ relayer, worker, totalCases });
-    setNextCaseId((current) => {
-      const currentNumber = caseNumber(current);
-      return currentNumber == null || currentNumber < nextCaseNumber ? `AQ-${nextCaseNumber}` : current;
-    });
+    setNextCaseId(`AQ-${nextCaseNumber}`);
     setSealCaseId((current) => {
       if (current) return current;
       return lastActiveCaseId ?? strongestKnownCaseId ?? `AQ-${nextCaseNumber}`;
@@ -653,10 +627,8 @@ export default function LiveConsole() {
 
       mirroredOnBase = true;
       rememberConfirmedCase(caseId);
-      rememberSuggestedNextCase(caseId);
       rememberActiveCase(caseId);
       setSubmitHash(tx.hash);
-      setNextCaseId(`AQ-${(caseNumber(caseId) ?? 0) + 1}`);
       const visibleNow = await genLayerCaseExists(caseId);
       setSubmitNotice(
         visibleNow
@@ -680,11 +652,7 @@ export default function LiveConsole() {
         setSealCaseId(caseId);
         setLookupCaseId(caseId);
         rememberActiveCase(caseId);
-        if (confirmedOnBase) {
-          rememberConfirmedCase(caseId);
-          rememberSuggestedNextCase(caseId);
-          setNextCaseId(`AQ-${(caseNumber(caseId) ?? 0) + 1}`);
-        }
+        if (confirmedOnBase) rememberConfirmedCase(caseId);
         await refreshCase(caseId);
         await refreshNetwork();
 
@@ -948,16 +916,7 @@ export default function LiveConsole() {
       const escrowCaseId = escrowCaseIdResult.status === "fulfilled" ? escrowCaseIdResult.value : "";
       if (escrowCaseId) {
         rememberConfirmedCase(String(escrowCaseId));
-        rememberSuggestedNextCase(String(escrowCaseId));
         rememberActiveCase(String(escrowCaseId));
-        const confirmedNumber = caseNumber(String(escrowCaseId));
-        if (confirmedNumber != null) {
-          setNextCaseId((current) => {
-            const currentNumber = caseNumber(current);
-            const suggested = confirmedNumber + 1;
-            return currentNumber == null || currentNumber < suggested ? `AQ-${suggested}` : current;
-          });
-        }
       }
       const tribunalCaseRaw = tribunalCaseResult.status === "fulfilled" ? String(tribunalCaseResult.value) : null;
       const verdictRaw =
