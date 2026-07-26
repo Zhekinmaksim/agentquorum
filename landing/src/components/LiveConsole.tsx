@@ -217,6 +217,14 @@ function summarizeUiError(message: string): ErrorPresentation {
     };
   }
 
+  if (normalized.includes("buffer is not defined")) {
+    return {
+      summary: "Browser crypto dependency failed to initialize.",
+      hint: "Reload the page and retry. The browser build needs the Buffer polyfill for the Inco sealing step.",
+      details: raw,
+    };
+  }
+
   if (normalized.includes("in get_case") && normalized.includes("keyerror")) {
     return {
       summary: "GenLayer has not exposed the new case record yet.",
