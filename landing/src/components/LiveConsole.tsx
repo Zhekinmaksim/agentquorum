@@ -289,6 +289,11 @@ function readLastConfirmedCaseNumber() {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function readLastConfirmedCaseId() {
+  const number = readLastConfirmedCaseNumber();
+  return number == null ? null : `AQ-${number}`;
+}
+
 function rememberConfirmedCase(caseId: string) {
   if (typeof window === "undefined") return;
   const current = caseNumber(caseId);
@@ -314,13 +319,16 @@ export default function LiveConsole() {
 
   const [wallet, setWallet] = useState<WalletState | null>(null);
   const [network, setNetwork] = useState<NetworkSnapshot>({ totalCases: null, relayer: "", worker: "" });
-  const [nextCaseId, setNextCaseId] = useState("");
+  const [nextCaseId, setNextCaseId] = useState(() => {
+    const lastConfirmed = readLastConfirmedCaseNumber();
+    return lastConfirmed == null ? "" : `AQ-${lastConfirmed + 1}`;
+  });
   const [caseTerms, setCaseTerms] = useState("Deliver index in 6h with complete rows and reproducible methodology.");
   const [respondent, setRespondent] = useState("");
-  const [lookupCaseId, setLookupCaseId] = useState(DEFAULT_LOOKUP_CASE);
+  const [lookupCaseId, setLookupCaseId] = useState(() => readLastConfirmedCaseId() ?? DEFAULT_LOOKUP_CASE);
   const [lookup, setLookup] = useState<LookupState | null>(null);
 
-  const [sealCaseId, setSealCaseId] = useState("");
+  const [sealCaseId, setSealCaseId] = useState(() => readLastConfirmedCaseId() ?? "");
   const [sealRole, setSealRole] = useState<Role>("claimant");
   const [bondAmount, setBondAmount] = useState("1000");
   const [evidenceText, setEvidenceText] = useState("");
@@ -366,10 +374,24 @@ export default function LiveConsole() {
 
     const totalCases = Number(totalCasesRaw);
     const lastConfirmedCaseNumber = readLastConfirmedCaseNumber();
+    const lastConfirmedCaseId = readLastConfirmedCaseId();
     const nextCaseNumber = Math.max(totalCases, (lastConfirmedCaseNumber ?? -1) + 1);
     setNetwork({ relayer, worker, totalCases });
-    setNextCaseId((current) => current || `AQ-${nextCaseNumber}`);
-    setSealCaseId((current) => current || `AQ-${nextCaseNumber}`);
+    setNextCaseId((current) => {
+      const currentNumber = caseNumber(current);
+      return currentNumber == null || currentNumber < nextCaseNumber ? `AQ-${nextCaseNumber}` : current;
+    });
+    setSealCaseId((current) => {
+      if (current) return current;
+      return lastConfirmedCaseId ?? `AQ-${nextCaseNumber}`;
+    });
+    setLookupCaseId((current) => {
+      const currentNumber = caseNumber(current);
+      if (lastConfirmedCaseNumber != null && (currentNumber == null || currentNumber < lastConfirmedCaseNumber)) {
+        return `AQ-${lastConfirmedCaseNumber}`;
+      }
+      return current || DEFAULT_LOOKUP_CASE;
+    });
   }
 
   async function expectedCaseIdFromGenLayer() {
@@ -846,6 +868,17 @@ export default function LiveConsole() {
 
       const phaseRaw = phaseResult.value;
       const escrowCaseId = escrowCaseIdResult.status === "fulfilled" ? escrowCaseIdResult.value : "";
+      if (escrowCaseId) {
+        rememberConfirmedCase(String(escrowCaseId));
+        const confirmedNumber = caseNumber(String(escrowCaseId));
+        if (confirmedNumber != null) {
+          setNextCaseId((current) => {
+            const currentNumber = caseNumber(current);
+            const suggested = confirmedNumber + 1;
+            return currentNumber == null || currentNumber < suggested ? `AQ-${suggested}` : current;
+          });
+        }
+      }
       const tribunalCaseRaw = tribunalCaseResult.status === "fulfilled" ? String(tribunalCaseResult.value) : null;
       const verdictRaw =
         verdictResult.status === "fulfilled" && verdictResult.value != null ? String(verdictResult.value) : null;
