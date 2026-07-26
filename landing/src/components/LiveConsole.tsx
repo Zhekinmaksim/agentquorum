@@ -10,6 +10,7 @@ const BASE_SEPOLIA_RPC = "https://sepolia.base.org";
 const BASE_SEPOLIA_CHAIN_ID = 84532;
 const BASE_SEPOLIA_CHAIN_ID_HEX = "0x14A34";
 const BASE_SEPOLIA_EXPLORER = "https://sepolia.basescan.org";
+const CASE_OPENED_TOPIC = keccakId("CaseOpened(bytes32,address,address)");
 const GENLAYER_CHAIN_ID = GENLAYER_CHAIN.id;
 const ESCROW_ADDRESS = env.VITE_ESCROW_ADDRESS ?? "0x0a2b41f8814f310A09e0Fbe256B55464d408666B";
 const TRIBUNAL_ADDRESS = (env.VITE_TRIBUNAL_ADDRESS ??
@@ -19,6 +20,8 @@ const INCO_OP_VALUE = parseEther("0.0001");
 const PHASE_LABELS = ["None", "Open", "Ready", "Settled", "Refunded"] as const;
 const DEFAULT_LOOKUP_CASE = "AQ-0";
 const LAST_CONFIRMED_CASE_KEY = "agentquorum:last-confirmed-case";
+const LAST_ACTIVE_CASE_KEY = "agentquorum:last-active-case";
+const NEXT_SUGGESTED_CASE_KEY = "agentquorum:next-suggested-case";
 
 type WalletState = {
   address: `0x${string}`;
@@ -294,6 +297,26 @@ function readLastConfirmedCaseId() {
   return number == null ? null : `AQ-${number}`;
 }
 
+function readLastActiveCaseId() {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(LAST_ACTIVE_CASE_KEY);
+  const parsed = raw ? caseNumber(raw) : null;
+  return parsed == null ? null : `AQ-${parsed}`;
+}
+
+function readNextSuggestedCaseNumber() {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(NEXT_SUGGESTED_CASE_KEY);
+  if (!raw) return null;
+  const parsed = caseNumber(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readNextSuggestedCaseId() {
+  const number = readNextSuggestedCaseNumber();
+  return number == null ? null : `AQ-${number}`;
+}
+
 function rememberConfirmedCase(caseId: string) {
   if (typeof window === "undefined") return;
   const current = caseNumber(caseId);
@@ -301,6 +324,24 @@ function rememberConfirmedCase(caseId: string) {
   const previous = readLastConfirmedCaseNumber();
   if (previous == null || current > previous) {
     window.localStorage.setItem(LAST_CONFIRMED_CASE_KEY, `AQ-${current}`);
+  }
+}
+
+function rememberActiveCase(caseId: string) {
+  if (typeof window === "undefined") return;
+  const current = caseNumber(caseId);
+  if (current == null) return;
+  window.localStorage.setItem(LAST_ACTIVE_CASE_KEY, `AQ-${current}`);
+}
+
+function rememberSuggestedNextCase(caseId: string) {
+  if (typeof window === "undefined") return;
+  const current = caseNumber(caseId);
+  if (current == null) return;
+  const suggested = current + 1;
+  const previous = readNextSuggestedCaseNumber();
+  if (previous == null || suggested > previous) {
+    window.localStorage.setItem(NEXT_SUGGESTED_CASE_KEY, `AQ-${suggested}`);
   }
 }
 
@@ -320,15 +361,17 @@ export default function LiveConsole() {
   const [wallet, setWallet] = useState<WalletState | null>(null);
   const [network, setNetwork] = useState<NetworkSnapshot>({ totalCases: null, relayer: "", worker: "" });
   const [nextCaseId, setNextCaseId] = useState(() => {
+    const suggested = readNextSuggestedCaseId();
+    if (suggested) return suggested;
     const lastConfirmed = readLastConfirmedCaseNumber();
     return lastConfirmed == null ? "" : `AQ-${lastConfirmed + 1}`;
   });
   const [caseTerms, setCaseTerms] = useState("Deliver index in 6h with complete rows and reproducible methodology.");
   const [respondent, setRespondent] = useState("");
-  const [lookupCaseId, setLookupCaseId] = useState(() => readLastConfirmedCaseId() ?? DEFAULT_LOOKUP_CASE);
+  const [lookupCaseId, setLookupCaseId] = useState(() => readLastActiveCaseId() ?? readLastConfirmedCaseId() ?? DEFAULT_LOOKUP_CASE);
   const [lookup, setLookup] = useState<LookupState | null>(null);
 
-  const [sealCaseId, setSealCaseId] = useState(() => readLastConfirmedCaseId() ?? "");
+  const [sealCaseId, setSealCaseId] = useState(() => readLastActiveCaseId() ?? readLastConfirmedCaseId() ?? "");
   const [sealRole, setSealRole] = useState<Role>("claimant");
   const [bondAmount, setBondAmount] = useState("1000");
   const [evidenceText, setEvidenceText] = useState("");
@@ -366,16 +409,22 @@ export default function LiveConsole() {
 
   async function refreshNetwork() {
     const escrow = getEscrowContract(baseProvider);
-    const [relayer, worker, totalCasesRaw] = await Promise.all([
+    const [relayer, worker, totalCasesRaw, latestBaseCaseId] = await Promise.all([
       escrow.tribunalRelayer(),
       escrow.discoveryWorker(),
       tribunalClient.readContract({ address: TRIBUNAL_ADDRESS, functionName: "total_cases", args: [] }),
+      latestBaseConfirmedCaseId(),
     ]);
 
     const totalCases = Number(totalCasesRaw);
     const lastConfirmedCaseNumber = readLastConfirmedCaseNumber();
-    const lastConfirmedCaseId = readLastConfirmedCaseId();
-    const nextCaseNumber = Math.max(totalCases, (lastConfirmedCaseNumber ?? -1) + 1);
+    const suggestedNextCaseNumber = readNextSuggestedCaseNumber();
+    const lastActiveCaseId = readLastActiveCaseId();
+    const derivedBaseCaseNumber = caseNumber(latestBaseCaseId ?? "");
+    if (latestBaseCaseId) rememberConfirmedCase(latestBaseCaseId);
+    const strongestKnownCaseNumber = Math.max(lastConfirmedCaseNumber ?? -1, derivedBaseCaseNumber ?? -1);
+    const strongestKnownCaseId = strongestKnownCaseNumber >= 0 ? `AQ-${strongestKnownCaseNumber}` : null;
+    const nextCaseNumber = Math.max(totalCases, strongestKnownCaseNumber + 1, suggestedNextCaseNumber ?? -1);
     setNetwork({ relayer, worker, totalCases });
     setNextCaseId((current) => {
       const currentNumber = caseNumber(current);
@@ -383,15 +432,34 @@ export default function LiveConsole() {
     });
     setSealCaseId((current) => {
       if (current) return current;
-      return lastConfirmedCaseId ?? `AQ-${nextCaseNumber}`;
+      return lastActiveCaseId ?? strongestKnownCaseId ?? `AQ-${nextCaseNumber}`;
     });
     setLookupCaseId((current) => {
       const currentNumber = caseNumber(current);
-      if (lastConfirmedCaseNumber != null && (currentNumber == null || currentNumber < lastConfirmedCaseNumber)) {
-        return `AQ-${lastConfirmedCaseNumber}`;
+      if (strongestKnownCaseNumber >= 0 && (currentNumber == null || currentNumber < strongestKnownCaseNumber)) {
+        return `AQ-${strongestKnownCaseNumber}`;
       }
-      return current || DEFAULT_LOOKUP_CASE;
+      return current || lastActiveCaseId || strongestKnownCaseId || DEFAULT_LOOKUP_CASE;
     });
+  }
+
+  async function latestBaseConfirmedCaseId() {
+    try {
+      const logs = await baseProvider.getLogs({
+        address: ESCROW_ADDRESS,
+        topics: [CASE_OPENED_TOPIC],
+        fromBlock: 0,
+        toBlock: "latest",
+      });
+      const lastLog = logs.at(-1);
+      const caseKey = lastLog?.topics?.[1];
+      if (!caseKey) return null;
+      const escrow = getEscrowContract(baseProvider);
+      const caseId = await escrow.caseIdOf(caseKey);
+      return String(caseId || "").trim() || null;
+    } catch {
+      return null;
+    }
   }
 
   async function expectedCaseIdFromGenLayer() {
@@ -585,7 +653,10 @@ export default function LiveConsole() {
 
       mirroredOnBase = true;
       rememberConfirmedCase(caseId);
+      rememberSuggestedNextCase(caseId);
+      rememberActiveCase(caseId);
       setSubmitHash(tx.hash);
+      setNextCaseId(`AQ-${(caseNumber(caseId) ?? 0) + 1}`);
       const visibleNow = await genLayerCaseExists(caseId);
       setSubmitNotice(
         visibleNow
@@ -608,7 +679,12 @@ export default function LiveConsole() {
         setSubmitError("");
         setSealCaseId(caseId);
         setLookupCaseId(caseId);
-        if (confirmedOnBase) rememberConfirmedCase(caseId);
+        rememberActiveCase(caseId);
+        if (confirmedOnBase) {
+          rememberConfirmedCase(caseId);
+          rememberSuggestedNextCase(caseId);
+          setNextCaseId(`AQ-${(caseNumber(caseId) ?? 0) + 1}`);
+        }
         await refreshCase(caseId);
         await refreshNetwork();
 
@@ -708,6 +784,7 @@ export default function LiveConsole() {
           role: sealRole,
         };
       });
+      rememberActiveCase(sealCaseId.trim());
       setLookupCaseId(sealCaseId.trim());
     } catch (error) {
       setSealError(errorMessage(error));
@@ -844,11 +921,12 @@ export default function LiveConsole() {
   }
 
   async function refreshCase(caseId = lookupCaseId) {
-    const normalized = caseId.trim();
-    if (!normalized) {
-      setLookupError("Case ID is required.");
-      return;
-    }
+      const normalized = caseId.trim();
+      if (!normalized) {
+        setLookupError("Case ID is required.");
+        return;
+      }
+      rememberActiveCase(normalized);
 
     setBusy("lookup");
     setLookupError("");
@@ -870,6 +948,8 @@ export default function LiveConsole() {
       const escrowCaseId = escrowCaseIdResult.status === "fulfilled" ? escrowCaseIdResult.value : "";
       if (escrowCaseId) {
         rememberConfirmedCase(String(escrowCaseId));
+        rememberSuggestedNextCase(String(escrowCaseId));
+        rememberActiveCase(String(escrowCaseId));
         const confirmedNumber = caseNumber(String(escrowCaseId));
         if (confirmedNumber != null) {
           setNextCaseId((current) => {
