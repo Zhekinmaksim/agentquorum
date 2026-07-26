@@ -299,6 +299,25 @@ export default function LiveConsole() {
     return `AQ-${Number(totalCasesRaw)}`;
   }
 
+  async function genLayerCaseExists(caseId: string) {
+    try {
+      await tribunalClient.readContract({ address: TRIBUNAL_ADDRESS, functionName: "get_case", args: [caseId] });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function baseMirrorExists(caseKey: string) {
+    try {
+      const escrow = getEscrowContract(baseProvider);
+      const mirroredCaseId = await escrow.caseIdOf(caseKey);
+      return String(mirroredCaseId || "").trim().length > 0;
+    } catch {
+      return false;
+    }
+  }
+
   async function connectWallet() {
     if (!injectedEthereum()) {
       setWalletError("No injected wallet found. Open the site in a browser with MetaMask or Rabby.");
@@ -368,11 +387,16 @@ export default function LiveConsole() {
   }
 
   async function submitOpenCase() {
+    const caseId = nextCaseId.trim();
+    const caseKey = caseId ? keccakId(caseId) : "";
+    let openedOnGenLayer = false;
+    let mirroredOnBase = false;
+
     if (!wallet) {
       setSubmitError("Connect a wallet first.");
       return;
     }
-    if (!nextCaseId.trim()) {
+    if (!caseId) {
       setSubmitError("Case ID is required.");
       return;
     }
@@ -395,13 +419,11 @@ export default function LiveConsole() {
     setSubmitHash("");
 
     try {
-      const caseId = nextCaseId.trim();
       const expectedCaseId = await expectedCaseIdFromGenLayer();
       if (caseId !== expectedCaseId) {
         setNextCaseId(expectedCaseId);
         throw new Error(`GenLayer currently expects ${expectedCaseId}. Case numbering is owned by GenLayer, so retry with that ID.`);
       }
-      const caseKey = keccakId(caseId);
       await ensureGenLayerChain();
       const client = createClient({
         chain: GENLAYER_CHAIN,
@@ -416,6 +438,7 @@ export default function LiveConsole() {
       });
       await client.waitForTransactionReceipt({ hash: genTxHash, status: TransactionStatus.ACCEPTED });
       await tribunalClient.readContract({ address: TRIBUNAL_ADDRESS, functionName: "get_case", args: [caseId] });
+      openedOnGenLayer = true;
       setSubmitGenHash(genTxHash);
 
       await ensureBaseSepoliaChain();
@@ -425,6 +448,7 @@ export default function LiveConsole() {
       const tx = await escrow.openCase(caseKey, normalizedRespondent, caseId);
       await tx.wait();
 
+      mirroredOnBase = true;
       setSubmitHash(tx.hash);
       setSubmitNotice("GenLayer cause opened first, then mirrored to Base with the same AQ-n and caseKey.");
       setSealCaseId(caseId);
@@ -432,7 +456,28 @@ export default function LiveConsole() {
       await refreshCase(caseId);
       await refreshNetwork();
     } catch (error) {
-      setSubmitError(errorMessage(error));
+      const rawMessage = errorMessage(error);
+      const [confirmedOnGenLayer, confirmedOnBase] = await Promise.all([
+        openedOnGenLayer ? Promise.resolve(true) : genLayerCaseExists(caseId),
+        caseKey ? (mirroredOnBase ? Promise.resolve(true) : baseMirrorExists(caseKey)) : Promise.resolve(false),
+      ]);
+
+      if (confirmedOnGenLayer) {
+        setSubmitError("");
+        setSealCaseId(caseId);
+        setLookupCaseId(caseId);
+        await refreshCase(caseId);
+        await refreshNetwork();
+
+        if (confirmedOnBase) {
+          setSubmitNotice("This cause is already open on both chains. The previous error was stale, but chain state is now confirmed.");
+        } else {
+          setSubmitNotice("GenLayer accepted this cause. Base mirror is not confirmed yet, so switch to Base Sepolia and retry the mirror if needed.");
+        }
+        return;
+      }
+
+      setSubmitError(rawMessage);
     } finally {
       setBusy("");
     }
