@@ -3,7 +3,7 @@ import { BrowserProvider, Contract, JsonRpcProvider, getAddress, id as keccakId,
 import { createClient } from "genlayer-js";
 import { TransactionStatus } from "genlayer-js/types";
 import { escrowAbi } from "../lib/escrowAbi";
-import { GENLAYER_CHAIN, GENLAYER_NETWORK_NAME } from "../lib/genlayerNetwork";
+import { GENLAYER_CHAIN } from "../lib/genlayerNetwork";
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 const BASE_SEPOLIA_RPC = "https://sepolia.base.org";
@@ -73,6 +73,10 @@ declare global {
 
 function injectedEthereum() {
   return window.ethereum;
+}
+
+function chainIdToHex(chainId: number) {
+  return `0x${chainId.toString(16)}`;
 }
 
 function trimAddress(address: string) {
@@ -208,6 +212,14 @@ function summarizeUiError(message: string): ErrorPresentation {
     return {
       summary: "Wallet network switch failed.",
       hint: "Add the requested network in MetaMask, then retry the action.",
+      details: raw,
+    };
+  }
+
+  if (normalized.includes("wallet_getsnaps") || normalized.includes("wallet_requestsnaps")) {
+    return {
+      summary: "This wallet does not support the MetaMask Snaps API.",
+      hint: "The GenLayer write flow should switch networks with ordinary wallet RPC, not require Snaps.",
       details: raw,
     };
   }
@@ -547,12 +559,42 @@ export default function LiveConsole() {
   async function ensureGenLayerChain() {
     if (!wallet) throw new Error("Connect a wallet first.");
     if (!injectedEthereum()) throw new Error("No injected wallet found.");
-    const client = createClient({
-      chain: GENLAYER_CHAIN,
-      account: wallet.address,
-      provider: injectedEthereum()!,
-    });
-    await client.connect(GENLAYER_NETWORK_NAME, "npm");
+    const provider = injectedEthereum()!;
+    const targetChainIdHex = chainIdToHex(GENLAYER_CHAIN.id);
+    try {
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: targetChainIdHex }],
+      });
+    } catch (error) {
+      const message = errorMessage(error).toLowerCase();
+      const code = typeof error === "object" && error !== null && "code" in error ? Number((error as { code?: unknown }).code) : NaN;
+      if (
+        code === 4902 ||
+        message.includes("unrecognized chain id") ||
+        message.includes("chain not added") ||
+        message.includes("unknown chain")
+      ) {
+        await provider.request({
+          method: "wallet_addEthereumChain",
+          params: [{
+            chainId: targetChainIdHex,
+            chainName: GENLAYER_CHAIN.name,
+            nativeCurrency: GENLAYER_CHAIN.nativeCurrency,
+            rpcUrls: [...GENLAYER_CHAIN.rpcUrls.default.http],
+            blockExplorerUrls: GENLAYER_CHAIN.blockExplorers?.default?.url
+              ? [GENLAYER_CHAIN.blockExplorers.default.url]
+              : [],
+          }],
+        });
+        await provider.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: targetChainIdHex }],
+        });
+      } else {
+        throw error;
+      }
+    }
     await syncWalletFromProvider(wallet.address);
   }
 
