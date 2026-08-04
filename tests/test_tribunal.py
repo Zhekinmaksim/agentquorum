@@ -10,12 +10,13 @@ genlayer-project-boilerplate tests, then adjust. The TEST INTENT below is the
 stable part.
 
 Determinism: the lifecycle and the tamper-rejection test do NOT invoke the
-model. convene() asserts the commitment match BEFORE _deliberate(), so feeding
-a mismatched hash reverts without ever calling an LLM. Only the final, marked
-integration test runs real committee consensus and is therefore slow and
-non-deterministic in its exact ruling.
+model. convene() asserts the commitment match BEFORE the nondeterministic
+deliberation path, so feeding a mismatched hash reverts without ever calling an
+LLM. Only the final, marked integration test runs real committee consensus and
+is therefore slow and non-deterministic in its exact ruling.
 """
 
+import hashlib
 import pytest
 from eth_utils import keccak
 from gltest import get_contract_factory
@@ -25,6 +26,10 @@ from gltest.assertions import tx_execution_succeeded, tx_execution_failed
 def keccak_hex(text: str) -> str:
     # Must match the contract's commitment: keccak256(plaintext), 0x-prefixed.
     return "0x" + keccak(text.encode()).hex()
+
+
+def sha256_hex(text: str) -> str:
+    return "0x" + hashlib.sha256(text.encode()).hexdigest()
 
 
 def deploy_tribunal(accounts):
@@ -108,11 +113,12 @@ def test_only_worker_can_convene(accounts):
 
 @pytest.mark.integration
 def test_full_deliberation_produces_valid_ruling(accounts):
-    """Slow: invokes the real committee. We assert only that the ruling is a
-    valid enum value and the case is RULED, since the exact outcome is a
-    model-consensus result, not a fixture."""
+    """Slow: invokes the real validator deliberation path. We assert only that
+    the ruling schema is valid and the case is RULED, since the exact outcome
+    is a model-consensus result, not a fixture."""
     contract, worker = deploy_tribunal(accounts)
     case_id, c_text, r_text = open_and_seal(contract, accounts)
+    terms = "Deliver index within 6h"
 
     res = contract.convene(
         args=[case_id, c_text, r_text, keccak_hex(c_text), keccak_hex(r_text)],
@@ -123,6 +129,12 @@ def test_full_deliberation_produces_valid_ruling(accounts):
     verdict = contract.get_verdict(args=[case_id]).call()
     assert verdict["ruling"] in {"CLAIMANT", "RESPONDENT", "SPLIT", "INSUFFICIENT"}
     assert 0 <= verdict["claimant_award_bps"] <= 10000
+    assert isinstance(verdict["rationale"], str)
+    assert verdict["reasoning_commitment"].startswith("0x")
+    assert len(verdict["reasoning_commitment"]) == 66
+    assert verdict["terms_commitment"] == sha256_hex(terms)
+    assert verdict["claimant_evidence_commitment"] == keccak_hex(c_text)
+    assert verdict["respondent_evidence_commitment"] == keccak_hex(r_text)
 
     case = contract.get_case(args=[case_id]).call()
     assert case["phase"] == "RULED"

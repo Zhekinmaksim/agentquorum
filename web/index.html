@@ -269,7 +269,7 @@
         <dl>
           <dt>Evidence</dt><dd>Encrypted client-side, held off-chain</dd>
           <dt>Bonds</dt><dd>Confidential euint, never disclosed</dd>
-          <dt>Decision</dt><dd>Committee consensus, strict_eq ruling</dd>
+          <dt>Decision</dt><dd>Validator-reviewed structured verdict</dd>
           <dt>Exposed</dt><dd>The holding and rationale, nothing more</dd>
         </dl>
       </div>
@@ -336,7 +336,7 @@ sla_clause:      force majeure cited</div>
         </div>
         <div class="tally">
           <span class="count" id="tallyCount">Awaiting ballots</span>
-          <span class="eqp">equivalence: <em>strict_eq</em> on ruling enum &middot; comparative on rationale</span>
+          <span class="eqp">equivalence: <em>validator-reviewed JSON verdict + exact input commitments</em> &middot; rationale kept brief</span>
         </div>
       </div>
 
@@ -352,7 +352,7 @@ sla_clause:      force majeure cited</div>
           <div class="editors-note">
             <span class="label">Editors' note &middot; undisclosed by design</span>
             <p>Both evidence sets, both bond amounts, and the full deliberation transcript remain sealed. Only the holding, the split, and this rationale were ever written to chain.</p>
-            <p class="mono">reasoning_commitment &middot; 0x4e9a..b71c</p>
+            <p class="mono">reasoning_commitment &middot; hash(ruling, bps, sealed input fingerprints)</p>
           </div>
         </div>
       </div>
@@ -453,7 +453,7 @@ sla_clause:      force majeure cited</div>
         b.textContent = seq[i].t;
         b.classList.add("cast"); if (seq[i].cls) b.classList.add(seq[i].cls);
         if (i === ballots.length - 1) {
-          $("tallyCount").innerHTML = "Quorum met <b>&middot; 4 of 5 concur</b> &middot; ruling settles under strict_eq";
+          $("tallyCount").innerHTML = "Quorum met <b>&middot; 4 of 5 concur</b> &middot; verdict accepted by validator review";
         }
       }, 500 + i * 360);
     });

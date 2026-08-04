@@ -80,7 +80,9 @@ can wait until after the grant.
 
 9. **Run the tribunal tests.** `pip install eth_utils && npm run test:tribunal`.
    Lifecycle + tamper-rejection are deterministic; the full-deliberation test is
-   marked `@integration` and invokes the real committee.
+   marked `@integration` and invokes the real validator deliberation path via
+   `gl.vm.run_nondet_unsafe`. The verdict now also carries the exact
+   terms/evidence fingerprints that validators saw for that hearing.
 
 ## Storage note
 
@@ -103,7 +105,7 @@ pinning vars in `.env`.
 
 ## One-line status
 
-The crypto and contract logic are written and the crypto layer is proven. The
-remaining work is installing `forge-std` for the deploy script and doing one
-funded run on Studio + Base Sepolia to prove the public covalidator + relayer
-path end-to-end.
+The crypto layer is proven and the tribunal path is validator-mediated rather
+than a local split heuristic. The remaining work is installing `forge-std` for
+the deploy script and doing one funded Studio + Base Sepolia run to prove the
+public covalidator + relayer path end-to-end.

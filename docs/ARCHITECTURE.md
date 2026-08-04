@@ -19,7 +19,7 @@ So the two stacks are given non-overlapping jobs:
 | Confidential bond amounts     | Inco Lightning   | `euint256` balances, never revealed        |
 | Evidence decryption key gating| Inco Lightning   | threshold access control, released to worker only |
 | Evidence confidentiality      | off-chain + sym  | XChaCha20-Poly1305 blob, hash committed on-chain |
-| Subjective judgment           | GenLayer IC      | committee consensus over plaintext, `strict_eq` ruling |
+| Subjective judgment           | GenLayer IC      | validator deliberation over plaintext, independently checked verdict |
 | Settlement split              | Inco Lightning   | `pot * bps / 10000` on ciphertext          |
 
 The evidence is **never** FHE-encrypted for the model. It is symmetrically
@@ -56,7 +56,7 @@ duration of one call.
   plaintext args ----------> GenLayer tribunal.convene(...)
                                 | re-checks keccak(plaintext) == commitment
                                 | committee deliberates in nondet block
-                                | strict_eq on ruling enum
+                                | validators independently verify ruling + award
                                 v
                               Verdict {ruling, bps, rationale} on chain
   WORKER reads verdict
@@ -69,13 +69,18 @@ duration of one call.
 
 ## Why these specific choices
 
-**Discrete ruling under `strict_eq`.** The single most common GenLayer failure
-mode is a vague prompt that hangs on `UNDETERMINED` because validators never
-agree on free text. AgentQuorum forces the binding decision into a closed set
-(`CLAIMANT`, `RESPONDENT`, `SPLIT`, `INSUFFICIENT`) plus an integer in basis
-points. The committee argues freely but must land on one enum value, which is
-what `strict_eq` can settle. The rationale is soft and uses a comparative
-principle.
+**Structured verdict under independent validator review.** The single most
+common GenLayer failure mode is treating LLM output like deterministic bytes.
+For AgentQuorum the leader proposes JSON with a closed ruling enum
+(`CLAIMANT`, `RESPONDENT`, `SPLIT`, `INSUFFICIENT`), integer basis points, and
+a short rationale. Validators do not compare raw text. They independently run
+the same deliberation prompt against the same terms and evidence, then compare
+stable decision fields: the ruling must match exactly, split awards must land
+within an explicit basis-point tolerance, and the verdict envelope must carry
+the same `terms_commitment`, `claimant_evidence_commitment`, and
+`respondent_evidence_commitment` on every validator. This follows GenLayer's
+documented custom-validator path: `gl.nondet.exec_prompt(...,
+response_format='json')` inside `gl.vm.run_nondet_unsafe(...)`.
 
 **Off-chain discovery.** A single transaction doing web fetch plus decryption
 plus a model call would hit GenLayer's hardcoded execution timeout. So the
@@ -87,7 +92,9 @@ Intelligent Oracle pattern.
 **Commitment over plaintext.** `keccak256(plaintext)` binds each party to exact
 content. The worker can decrypt but cannot alter, because `convene()` rejects
 any plaintext that does not hash back to the sealed commitment. The worker is a
-courier, not a judge.
+courier, not a judge. The verdict written after deliberation also carries those
+same input fingerprints, so the public ruling is cryptographically tied back to
+the sealed dispute inputs the committee actually reviewed.
 
 **Per-party keys.** Each party seals its own evidence under its own symmetric
 key, and the escrow releases both keys to the worker only at `markReady`. A

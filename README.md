@@ -18,7 +18,10 @@ exposed to the counterparty.
 ## What it does
 
 - **GenLayer** handles judgment. A committee of validators can reason over
-  natural-language terms and messy evidence, then converge on a discrete ruling.
+  natural-language terms and messy evidence, then converge on a structured
+  verdict through real validator deliberation. The decisive verdict fields are
+  bound to the exact terms/evidence fingerprint set that was sealed before the
+  hearing.
 - **Inco Lightning** handles confidentiality. Bond amounts stay encrypted, and
   evidence keys are released only to the tribunal pipeline, not to the other
   side.
@@ -94,8 +97,10 @@ web/index.html                  simple case-file frontend
 3. **Release.** Once both sides are funded and sealed, the escrow releases each
    evidence key to the discovery worker alone.
 4. **Convene.** The worker decrypts, then convenes the tribunal. The committee
-   reasons over plaintext in a non-deterministic block and settles a discrete
-   ruling under `strict_eq`.
+   reasons over plaintext in a non-deterministic block. Validators derive their
+   own verdicts and accept the leader only if the ruling stays aligned and the
+   verdict carries the same terms/evidence commitments that were sealed before
+   judgment.
 5. **Enter.** Only the verdict returns. The escrow splits the confidential pot by
    basis points without ever revealing its size.
 
@@ -130,6 +135,12 @@ Develop locally or on Studio first, then promote to Bradbury for production-like
 
 This is a working prototype, not an audited release. The important caveats are:
 
+- The GenLayer tribunal now uses a real non-deterministic validator
+  deliberation path (`gl.nondet.exec_prompt` via `gl.vm.run_nondet_unsafe`)
+  instead of a local heuristic.
+- The recorded verdict now includes the sealed terms/evidence fingerprints, so
+  reviewers can see that the ruling is bound to the exact committed dispute
+  inputs rather than a free-floating output blob.
 - The design and scripts are real, but the stack still depends on external SDK
   surfaces from GenLayer and Inco that should be rechecked before a public demo.
 - The real Inco attested-decrypt KMS path is the main integration risk. See the
