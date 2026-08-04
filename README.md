@@ -61,6 +61,38 @@ for the cases where the facts cannot be published.
 
 [`deploy/open-cause.ts`](deploy/open-cause.ts) opens and links the case on both chains.
 
+## Live Deployment
+
+- **GenLayer Bradbury tribunal:** `0xF100d7169C3968cACB9F3b93C4E7d9b7a25f44E2`
+- **Base Sepolia escrow:** `0x3b6312f7eDc8A08c2b3716fCd8c1c5d7d4033838`
+- **Tribunal deploy result:** accepted on August 4, 2026
+- **Escrow deploy tx:** `0x438dd175cc397589a8e4991a882950c7f0e1b7bb7dfae8e39ee227a452cf4afc`
+
+## Latest Live Proof
+
+Verified on August 4, 2026 with case `AQ-2`.
+
+- `open_case` on GenLayer: `0x011b17d149feb6d14ca7bea65b7b297dc8718ccb4282fee380081eca6b3077db`
+- `openCase` on Base Sepolia: `0x329bff5d702da79af63ec8bf9c871cea09f770a44b0384a3608ba5fe7a238c66`
+- claimant `seal_evidence` on GenLayer: `0xde2cc3012627f65885ec5c7a0ff791c9902336db9289fdf0f33cd7758c2333cd`
+- respondent `seal_evidence` on GenLayer: `0x70364317f53ce74ec6a490b58ae827c2a2324a4934c8d82e0bf2ae1557a5a68c`
+- `convene` on GenLayer: `0xa1e593d5a4c209804be932c798a56959cca3ed322921e771e7522abd3d9d5d5c`
+- `settle` on Base Sepolia: `0x38805ca4b926094f6f84fa0a751cff1bd58a31bb19e6d2a1c9d7b6b733c6986a`
+
+The resulting verdict was:
+
+- `ruling = CLAIMANT`
+- `claimant_award_bps = 10000`
+- `terms_commitment = 0x10f4e122b1faa4249674b0ddf66f1aad201a451eab61950df21250fc3addf01a`
+- `claimant_evidence_commitment = 0x21ad019d6402c35bf165dfbeff6ac0cbcc246b9d634e2d11091310886f7eb199`
+- `respondent_evidence_commitment = 0x85e16366874812a59d091179dd1005d53059234f4e16ec3967bf6f3a7c634923`
+
+The live worker path reached `Ready` using real GenLayer + Base writes. The
+remaining external integration issue is the current Inco attested-decrypt KMS
+path returning HTTP 404 on this SDK/network route; for this proof the final
+`convene` step completed through the existing demo fallback after all on-chain
+commitments, seals, and readiness checks had already succeeded live.
+
 ## Why this is hard, and how we resolve it
 
 An LLM cannot reason over FHE ciphertext. So we do not pretend to. FHE does what

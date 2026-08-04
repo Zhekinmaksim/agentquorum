@@ -12,6 +12,7 @@ type SendRawArgs = {
   recipient: GlAddress;
   txData: `0x${string}`;
   value?: bigint;
+  validUntil?: bigint;
   waitForStatus?: TransactionStatus;
 };
 
@@ -110,6 +111,7 @@ export async function sendRawGenLayerTransaction({
   recipient,
   txData,
   value = 0n,
+  validUntil = BigInt(Math.floor(Date.now() / 1000) + 3600),
   waitForStatus = TransactionStatus.ACCEPTED,
 }: SendRawArgs) {
   const client = createGlClient(privateKey);
@@ -130,6 +132,7 @@ export async function sendRawGenLayerTransaction({
       client.chain.defaultNumberOfInitialValidators,
       client.chain.defaultConsensusMaxRotations,
       txData,
+      validUntil,
     ],
   });
 

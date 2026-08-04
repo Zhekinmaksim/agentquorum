@@ -11,7 +11,7 @@
     "dryrun": "node --import tsx offchain/dryrun.ts",
     "e2e:live": "node --env-file=.env --import tsx offchain/e2e.ts",
     "resume:ready": "node --env-file=.env --import tsx offchain/resume-ready.ts",
-    "deploy:escrow": "cd contracts && forge script script/Deploy.s.sol:Deploy --rpc-url $BASE_SEPOLIA_RPC --broadcast",
+    "deploy:escrow": "node --env-file=.env --import tsx deploy/deployEscrow.ts",
     "deploy:tribunal": "node --env-file=.env --import tsx deploy/deployScript.ts",
     "open:cause": "node --env-file=.env --import tsx deploy/open-cause.ts",
     "test:tribunal": "gltest",

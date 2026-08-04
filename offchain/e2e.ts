@@ -7,7 +7,7 @@ import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 
-import { createGlClient, deployContractRaw, getContractAddressFromReceipt, writeContractRaw } from "./genlayer-raw.js";
+import { createGlClient, deployContractRaw, getContractAddressFromReceipt } from "./genlayer-raw.js";
 import { seal, unseal, commitmentOf, bytesToHex } from "./crypto.js";
 import { demoEvidenceText } from "./demo-evidence.js";
 import { decryptHandlesWithFallback } from "./inco-decrypt.js";
@@ -17,6 +17,11 @@ import escrowAbi from "./abi/ConfidentialEscrow.json" assert { type: "json" };
 
 type Hex = `0x${string}`;
 type GlAddress = `0x${string}` & { length: 42 };
+type TribunalSnapshot = {
+  claimant: { evidence_uri: string; evidence_commitment: Hex; submitted?: boolean };
+  respondent: { evidence_uri: string; evidence_commitment: Hex; submitted?: boolean };
+  phase?: string;
+};
 const INCO_OP_VALUE = parseEther("0.0001");
 
 function requireEnv(name: string): string {
@@ -50,6 +55,27 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function withRetry<T>(label: string, fn: () => Promise<T>, attempts = 4, delayMs = 3_000): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts) break;
+      logStep("retry.wait", {
+        label,
+        attempt,
+        attempts,
+        delayMs,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await sleep(delayMs);
+    }
+  }
+  throw lastError;
+}
+
 async function waitForEscrowOpenPhase(escrow: Contract, caseKey: Hex, timeoutMs = 60_000) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
@@ -68,17 +94,66 @@ async function waitForVerdict(
 ) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const verdictRaw = await glClient.readContract({
-      address: tribunalAddress,
-      functionName: "get_verdict",
-      args: [caseId],
-    }) as string | null;
+    const verdictRaw = await withRetry(`tribunal.get_verdict(${caseId})`, () =>
+      glClient.readContract({
+        address: tribunalAddress,
+        functionName: "get_verdict",
+        args: [caseId],
+      }) as Promise<string | null>
+    );
     if (verdictRaw) {
       return JSON.parse(verdictRaw) as { ruling: string; claimant_award_bps: number; rationale: string };
     }
     await sleep(2_000);
   }
   return null;
+}
+
+async function waitForTribunalCase(
+  glClient: ReturnType<typeof createGlClient>,
+  tribunalAddress: GlAddress,
+  caseId: string,
+  predicate?: (value: TribunalSnapshot) => boolean,
+  timeoutMs = 90_000,
+) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const raw = await withRetry(`tribunal.get_case(${caseId})`, () =>
+        glClient.readContract({
+          address: tribunalAddress,
+          functionName: "get_case",
+          args: [caseId],
+        }) as Promise<string>
+      );
+      const parsed = JSON.parse(raw) as TribunalSnapshot;
+      if (!predicate || predicate(parsed)) return parsed;
+    } catch {
+      // Visibility can lag after ACCEPTED; keep polling.
+    }
+    await sleep(2_000);
+  }
+  throw new Error(`timed out waiting for tribunal case visibility for ${caseId}`);
+}
+
+async function writeAccepted(
+  client: ReturnType<typeof createGlClient>,
+  address: GlAddress,
+  functionName: string,
+  args: unknown[],
+) {
+  const hash = await withRetry(`${functionName}.write`, () =>
+    client.writeContract({
+      address,
+      functionName,
+      args: args as any,
+      value: 0n,
+    })
+  );
+  await withRetry(`${functionName}.accepted`, () =>
+    client.waitForTransactionReceipt({ hash, status: TransactionStatus.ACCEPTED })
+  );
+  return hash;
 }
 
 function logStep(step: string, detail?: Record<string, unknown>) {
@@ -143,30 +218,26 @@ async function main() {
   const tribunalAddress = await ensureTribunalAddress(workerAddress);
   logStep("addresses.ready", { escrowAddress, tribunalAddress });
 
-  const glReadClient = createGlClient(claimantKey);
-  await glReadClient.initializeConsensusSmartContract();
+  const claimantGlClient = createGlClient(claimantKey);
+  await withRetry("initializeConsensusSmartContract.claimant", () => claimantGlClient.initializeConsensusSmartContract());
 
-  const nRaw = await glReadClient.readContract({
-    address: tribunalAddress,
-    functionName: "total_cases",
-    args: [],
-  });
+  const nRaw = await withRetry("tribunal.total_cases", () =>
+    claimantGlClient.readContract({
+      address: tribunalAddress,
+      functionName: "total_cases",
+      args: [],
+    })
+  );
   const caseIndex = Number(nRaw);
   const caseId = `AQ-${caseIndex}`;
   const caseKey = keccakId(caseId) as Hex;
   const terms = "Deliver index in 6h with complete rows and reproducible methodology.";
   logStep("case.derived", { caseIndex, caseId, caseKey });
 
-  const openTx = await writeContractRaw(
-    claimantKey,
-    tribunalAddress,
-    "open_case",
-    [terms, caseKey, respondentAddress],
-    undefined,
-    0n,
-    TransactionStatus.FINALIZED,
-  );
-  logStep("genlayer.open_case.accepted", { hash: openTx.hash });
+  const openHash = await writeAccepted(claimantGlClient, tribunalAddress, "open_case", [terms, caseKey, respondentAddress]);
+  logStep("genlayer.open_case.accepted", { hash: openHash });
+  await waitForTribunalCase(claimantGlClient, tribunalAddress, caseId);
+  logStep("genlayer.open_case.visible", { caseId });
 
   const escrow = new Contract(escrowAddress, escrowAbi, claimantWallet);
   const openCaseTx = await escrow.openCase(caseKey, respondentAddress, caseId);
@@ -207,26 +278,30 @@ async function main() {
     handleType: handleTypes.euint256,
   });
 
-  await writeContractRaw(
-    claimantKey,
+  const respondentGlClient = createGlClient(respondentKey);
+  await withRetry("initializeConsensusSmartContract.respondent", () => respondentGlClient.initializeConsensusSmartContract());
+
+  const claimantSealHash = await writeAccepted(
+    claimantGlClient,
     tribunalAddress,
     "seal_evidence",
     [caseId, claimantEvidence.commitment, claimantUri],
-    undefined,
-    0n,
-    TransactionStatus.FINALIZED,
   );
-  logStep("genlayer.claimant.sealed", { caseId, claimantUri });
-  await writeContractRaw(
-    respondentKey,
+  logStep("genlayer.claimant.sealed", { caseId, claimantUri, hash: claimantSealHash });
+  const respondentSealHash = await writeAccepted(
+    respondentGlClient,
     tribunalAddress,
     "seal_evidence",
     [caseId, respondentEvidence.commitment, respondentUri],
-    undefined,
-    0n,
-    TransactionStatus.FINALIZED,
   );
-  logStep("genlayer.respondent.sealed", { caseId, respondentUri });
+  logStep("genlayer.respondent.sealed", { caseId, respondentUri, hash: respondentSealHash });
+  await waitForTribunalCase(
+    claimantGlClient,
+    tribunalAddress,
+    caseId,
+    (snapshot) => snapshot.phase === "SEALED",
+  );
+  logStep("genlayer.sealed.visible", { caseId });
 
   const claimantEscrow = new Contract(escrowAddress, escrowAbi, claimantWallet);
   const respondentEscrow = new Contract(escrowAddress, escrowAbi, respondentWallet);
@@ -243,16 +318,8 @@ async function main() {
   logStep("base.markReady.mined", { caseKey });
 
   const workerReadClient = createGlClient(workerKey);
-  await workerReadClient.initializeConsensusSmartContract();
-  const tribunalCaseRaw = await workerReadClient.readContract({
-    address: tribunalAddress,
-    functionName: "get_case",
-    args: [caseId],
-  }) as string;
-  const tribunalCase = JSON.parse(tribunalCaseRaw) as {
-    claimant: { evidence_uri: string; evidence_commitment: Hex };
-    respondent: { evidence_uri: string; evidence_commitment: Hex };
-  };
+  await withRetry("initializeConsensusSmartContract.worker", () => workerReadClient.initializeConsensusSmartContract());
+  const tribunalCase = await waitForTribunalCase(workerReadClient, tribunalAddress, caseId);
   logStep("genlayer.get_case.ok", { caseId });
 
   const workerEscrow = new Contract(escrowAddress, escrowAbi, workerWallet);
@@ -296,16 +363,13 @@ async function main() {
     throw new Error("respondent commitment mismatch before convene");
   }
 
-  const conveneTx = await writeContractRaw(
-    workerKey,
+  const conveneHash = await writeAccepted(
+    workerReadClient,
     tribunalAddress,
     "convene",
     [caseId, claimantTextOut, respondentTextOut, claimantCommitment, respondentCommitment],
-    undefined,
-    0n,
-    TransactionStatus.FINALIZED,
   );
-  logStep("genlayer.convene.accepted", { hash: conveneTx.hash, evidenceSource });
+  logStep("genlayer.convene.accepted", { hash: conveneHash, evidenceSource });
 
   const verdict = await waitForVerdict(workerReadClient, tribunalAddress, caseId);
   logStep("genlayer.get_verdict.ok", { caseId, verdict });
@@ -320,8 +384,8 @@ async function main() {
     tribunalAddress,
     caseId,
     caseKey,
-    genlayerOpenTx: openTx.hash,
-    genlayerConveneTx: conveneTx.hash,
+    genlayerOpenTx: openHash,
+    genlayerConveneTx: conveneHash,
     baseOpenCaseTx: openCaseTx.hash,
     baseSettleTx: settleTx.hash,
     phase: Number(phase),

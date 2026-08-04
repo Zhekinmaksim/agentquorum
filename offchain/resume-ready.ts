@@ -7,7 +7,7 @@ import { baseSepolia } from "viem/chains";
 import escrowAbi from "./abi/ConfidentialEscrow.json" assert { type: "json" };
 import { commitmentOf, unseal } from "./crypto.js";
 import { demoEvidenceText } from "./demo-evidence.js";
-import { createGlClient, writeContractRaw } from "./genlayer-raw.js";
+import { createGlClient } from "./genlayer-raw.js";
 import { decryptHandlesWithFallback } from "./inco-decrypt.js";
 import { Lightning } from "./inco.js";
 import { fetchBlob } from "./storage.js";
@@ -51,14 +51,51 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function withRetry<T>(label: string, fn: () => Promise<T>, attempts = 4, delayMs = 3_000): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts) break;
+      console.warn(`${label} failed (attempt ${attempt}/${attempts}), retrying in ${delayMs}ms ...`);
+      await sleep(delayMs);
+    }
+  }
+  throw lastError;
+}
+
+async function writeAccepted(
+  client: ReturnType<typeof createGlClient>,
+  address: GlAddress,
+  functionName: string,
+  args: unknown[],
+) {
+  const hash = await withRetry(`${functionName}.write`, () =>
+    client.writeContract({
+      address,
+      functionName,
+      args: args as any,
+      value: 0n,
+    })
+  );
+  await withRetry(`${functionName}.accepted`, () =>
+    client.waitForTransactionReceipt({ hash, status: TransactionStatus.ACCEPTED })
+  );
+  return hash;
+}
+
 async function waitForVerdict(gl: ReturnType<typeof createGlClient>, tribunalAddress: GlAddress, caseId: string, timeoutMs = 90_000) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const verdictRaw = await gl.readContract({
-      address: tribunalAddress,
-      functionName: "get_verdict",
-      args: [caseId],
-    }) as string | null;
+    const verdictRaw = await withRetry(`get_verdict(${caseId})`, () =>
+      gl.readContract({
+        address: tribunalAddress,
+        functionName: "get_verdict",
+        args: [caseId],
+      }) as Promise<string | null>
+    );
     if (verdictRaw) return JSON.parse(verdictRaw) as Verdict;
     await sleep(2_000);
   }
@@ -79,13 +116,15 @@ async function main() {
   const caseKey = keccakId(caseId) as Hex;
 
   const gl = createGlClient(workerKey);
-  await gl.initializeConsensusSmartContract();
+  await withRetry("initializeConsensusSmartContract", () => gl.initializeConsensusSmartContract());
 
-  const tribunalCaseRaw = await gl.readContract({
-    address: tribunalAddress,
-    functionName: "get_case",
-    args: [caseId],
-  }) as string;
+  const tribunalCaseRaw = await withRetry(`get_case(${caseId})`, () =>
+    gl.readContract({
+      address: tribunalAddress,
+      functionName: "get_case",
+      args: [caseId],
+    }) as Promise<string>
+  );
   const tribunalCase = JSON.parse(tribunalCaseRaw) as TribunalCase;
 
   const base = new JsonRpcProvider(requireEnv("BASE_SEPOLIA_RPC"));
@@ -93,11 +132,13 @@ async function main() {
   const escrow = new Contract(escrowAddress, escrowAbi, workerWallet);
   const phaseBefore = Number(await escrow.phaseOf(caseKey));
 
-  const verdictRaw = await gl.readContract({
-    address: tribunalAddress,
-    functionName: "get_verdict",
-    args: [caseId],
-  }) as string | null;
+  const verdictRaw = await withRetry(`get_verdict(${caseId})`, () =>
+    gl.readContract({
+      address: tribunalAddress,
+      functionName: "get_verdict",
+      args: [caseId],
+    }) as Promise<string | null>
+  );
 
   let verdict = verdictRaw ? JSON.parse(verdictRaw) as Verdict : null;
   let evidenceSource: "attested_decrypt" | "demo_fallback" | "already_ruled" = "already_ruled";
@@ -142,19 +183,16 @@ async function main() {
       throw new Error("respondent commitment mismatch");
     }
 
-    const conveneTx = await writeContractRaw(
-      workerKey,
+    const conveneHash = await writeAccepted(
+      gl,
       tribunalAddress,
       "convene",
       [caseId, claimantText, respondentText, claimantCommitment, respondentCommitment],
-      undefined,
-      0n,
-      TransactionStatus.FINALIZED,
     );
 
     verdict = await waitForVerdict(gl, tribunalAddress, caseId);
 
-    console.log(JSON.stringify({ step: "convene.done", caseId, hash: conveneTx.hash, evidenceSource }, null, 2));
+    console.log(JSON.stringify({ step: "convene.done", caseId, hash: conveneHash, evidenceSource }, null, 2));
   }
 
   if (!verdict) throw new Error("verdict not available");

@@ -31,25 +31,56 @@ function arg(name: string, fallback?: string) {
   return i >= 0 ? process.argv[i + 1] : fallback;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(label: string, fn: () => Promise<T>, attempts = 4, delayMs = 3_000): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts) break;
+      console.warn(`${label} failed (attempt ${attempt}/${attempts}), retrying in ${delayMs}ms ...`);
+      await sleep(delayMs);
+    }
+  }
+  throw lastError;
+}
+
 async function main() {
   const terms = arg("terms");
-  const respondent = arg("respondent") as GlAddress | undefined;
-  if (!terms || !respondent) {
+  const claimantKey = (process.env.CLAIMANT_KEY ?? process.env.GENLAYER_PRIVATE_KEY) as `0x${string}` | undefined;
+  const respondent =
+    (arg("respondent") ??
+      process.env.RESPONDENT_ADDRESS ??
+      (process.env.GENLAYER_PRIVATE_KEY
+        ? new Wallet(process.env.GENLAYER_PRIVATE_KEY as `0x${string}`).address
+        : undefined)) as GlAddress | undefined;
+  if (!terms || !respondent || !claimantKey) {
     console.error('usage: tsx deploy/open-cause.ts --terms "..." --respondent 0x...');
     process.exit(1);
+  }
+  const claimantAddress = new Wallet(claimantKey).address.toLowerCase();
+  if (claimantAddress === respondent.toLowerCase()) {
+    throw new Error("respondent must be different from claimant");
   }
 
   const TRIBUNAL = process.env.TRIBUNAL_ADDRESS! as GlAddress;
   const ESCROW = process.env.ESCROW_ADDRESS!;
 
   // GenLayer side
-  const account = createAccount(process.env.GENLAYER_PRIVATE_KEY as `0x${string}`);
+  const account = createAccount(claimantKey);
   const gl = createClient({ chain: getGenLayerChain(), account });
-  await gl.initializeConsensusSmartContract();
+  await withRetry("initializeConsensusSmartContract", () => gl.initializeConsensusSmartContract());
 
-  const nRaw = await gl.readContract({
-    address: TRIBUNAL, functionName: "total_cases", args: [],
-  });
+  const nRaw = await withRetry("tribunal.total_cases", () =>
+    gl.readContract({
+      address: TRIBUNAL, functionName: "total_cases", args: [],
+    })
+  );
   const n = Number(nRaw);
   const caseId = `AQ-${n}`;
   const caseKey = keccakId(caseId); // keccak256(utf8(caseId)), 0x + 64 hex
@@ -57,15 +88,17 @@ async function main() {
   console.log(`Opening ${caseId}  (caseKey ${caseKey})`);
 
   // 1. tribunal: reference the escrow case via caseKey
-  await gl.writeContract({
-    address: TRIBUNAL, functionName: "open_case", args: [terms, caseKey, respondent],
-    value: 0n,
-  });
+  await withRetry("tribunal.open_case", () =>
+    gl.writeContract({
+      address: TRIBUNAL, functionName: "open_case", args: [terms, caseKey, respondent],
+      value: 0n,
+    })
+  );
 
   // 2. escrow: bind the same id + key. The opener becomes the claimant, so
   //    this must be signed by the claimant's Base wallet.
   const base = new JsonRpcProvider(process.env.BASE_SEPOLIA_RPC);
-  const wallet = new Wallet(process.env.CLAIMANT_KEY ?? process.env.ESCROW_DEPLOYER_KEY!, base);
+  const wallet = new Wallet(claimantKey, base);
   const escrow = new Contract(ESCROW, escrowAbi, wallet);
   const tx = await escrow.openCase(caseKey, respondent, caseId);
   await tx.wait();

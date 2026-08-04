@@ -12,13 +12,13 @@ const BASE_SEPOLIA_CHAIN_ID_HEX = "0x14A34";
 const BASE_SEPOLIA_EXPLORER = "https://sepolia.basescan.org";
 const CASE_OPENED_TOPIC = keccakId("CaseOpened(bytes32,address,address)");
 const GENLAYER_CHAIN_ID = GENLAYER_CHAIN.id;
-const ESCROW_ADDRESS = env.VITE_ESCROW_ADDRESS ?? "0x0a2b41f8814f310A09e0Fbe256B55464d408666B";
+const ESCROW_ADDRESS = env.VITE_ESCROW_ADDRESS ?? "0x3b6312f7eDc8A08c2b3716fCd8c1c5d7d4033838";
 const TRIBUNAL_ADDRESS = (env.VITE_TRIBUNAL_ADDRESS ??
-  "0x3d9d27C990f9adCa2ecd5Dc2DC3B3EC910999CAc") as `0x${string}` & { length: 42 };
+  "0xF100d7169C3968cACB9F3b93C4E7d9b7a25f44E2") as `0x${string}` & { length: 42 };
 const INCO_OP_VALUE = parseEther("0.0001");
 
 const PHASE_LABELS = ["None", "Open", "Ready", "Settled", "Refunded"] as const;
-const DEFAULT_LOOKUP_CASE = "AQ-0";
+const DEFAULT_LOOKUP_CASE = "";
 const LAST_CONFIRMED_CASE_KEY = "agentquorum:last-confirmed-case";
 const LAST_ACTIVE_CASE_KEY = "agentquorum:last-active-case";
 
@@ -340,6 +340,11 @@ function rememberActiveCase(caseId: string) {
   window.localStorage.setItem(LAST_ACTIVE_CASE_KEY, `AQ-${current}`);
 }
 
+function clearRememberedActiveCase() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(LAST_ACTIVE_CASE_KEY);
+}
+
 async function readFileAsText(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -396,6 +401,20 @@ export default function LiveConsole() {
       if (sealedDraft?.downloadUrl) URL.revokeObjectURL(sealedDraft.downloadUrl);
     };
   }, [sealedDraft?.downloadUrl]);
+
+  useEffect(() => {
+    if (!nextCaseId) return;
+    const rememberedActiveCaseId = readLastActiveCaseId();
+    setSealCaseId((current) => {
+      if (rememberedActiveCaseId) return rememberedActiveCaseId;
+      const currentNumber = caseNumber(current);
+      const nextNumber = caseNumber(nextCaseId);
+      if (currentNumber == null) return nextCaseId;
+      if (nextNumber != null && currentNumber < nextNumber) return nextCaseId;
+      return current;
+    });
+    setLookupCaseId((current) => current || rememberedActiveCaseId || nextCaseId);
+  }, [nextCaseId]);
 
   async function refreshNetwork() {
     const escrow = getEscrowContract(baseProvider);
@@ -983,6 +1002,11 @@ export default function LiveConsole() {
         setLookupNotice("GenLayer visible. Base pending confirmation.");
       } else if (tribunalCaseResult.status === "rejected") {
         setLookupNotice(tribunalStatus);
+      }
+      if (tribunalCaseRaw || escrowCaseId) {
+        rememberActiveCase(normalized);
+      } else if (normalized === nextCaseId) {
+        clearRememberedActiveCase();
       }
     } catch (error) {
       setLookup(null);
